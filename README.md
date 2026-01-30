@@ -50,6 +50,7 @@ Create a new project.
 **Arguments:**
 - `name` (string, required): Project name
 - `description` (string, optional): Project description
+- `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### list_projects
 List all projects.
@@ -67,6 +68,7 @@ Update an existing project. Only provided fields will be updated.
 - `id` (number, required): Project ID
 - `name` (string, optional): Project name
 - `description` (string, optional): Project description
+- `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### delete_project
 Delete a project and all its associated tasks.
@@ -85,6 +87,7 @@ Create a new task in a project.
 - `description` (string, optional): Task description
 - `status` (string, optional): Task status (pending, in_progress, completed, blocked) - default: "pending"
 - `priority` (string, optional): Task priority (low, medium, high, urgent) - default: "medium"
+- `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### list_tasks
 List tasks, optionally filtered by project and/or status.
@@ -108,6 +111,7 @@ Update an existing task. Only provided fields will be updated.
 - `description` (string, optional): Task description
 - `status` (string, optional): Task status (pending, in_progress, completed, blocked)
 - `priority` (string, optional): Task priority (low, medium, high, urgent)
+- `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### delete_task
 Delete a task.

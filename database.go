@@ -15,22 +15,24 @@ type Database struct {
 }
 
 type Project struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	ExternalLink string    `json:"external_link"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type Task struct {
-	ID          int64     `json:"id"`
-	ProjectID   int64     `json:"project_id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	Priority    string    `json:"priority"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	ProjectID    int64     `json:"project_id"`
+	Title        string    `json:"title"`
+	Description  string    `json:"description"`
+	Status       string    `json:"status"`
+	Priority     string    `json:"priority"`
+	ExternalLink string    `json:"external_link"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // NewDatabase creates a new database connection
@@ -62,6 +64,7 @@ func (d *Database) initSchema() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		description TEXT,
+		external_link TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -73,6 +76,7 @@ func (d *Database) initSchema() error {
 		description TEXT,
 		status TEXT DEFAULT 'pending',
 		priority TEXT DEFAULT 'medium',
+		external_link TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -93,10 +97,10 @@ func (d *Database) Close() error {
 
 // Project operations
 
-func (d *Database) CreateProject(name, description string) (*Project, error) {
+func (d *Database) CreateProject(name, description, externalLink string) (*Project, error) {
 	result, err := d.db.Exec(
-		"INSERT INTO projects (name, description) VALUES (?, ?)",
-		name, description,
+		"INSERT INTO projects (name, description, external_link) VALUES (?, ?, ?)",
+		name, description, externalLink,
 	)
 	if err != nil {
 		return nil, err
@@ -113,9 +117,9 @@ func (d *Database) CreateProject(name, description string) (*Project, error) {
 func (d *Database) GetProject(id int64) (*Project, error) {
 	var p Project
 	err := d.db.QueryRow(
-		"SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?",
+		"SELECT id, name, description, external_link, created_at, updated_at FROM projects WHERE id = ?",
 		id,
-	).Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +128,7 @@ func (d *Database) GetProject(id int64) (*Project, error) {
 
 func (d *Database) ListProjects() ([]*Project, error) {
 	rows, err := d.db.Query(
-		"SELECT id, name, description, created_at, updated_at FROM projects ORDER BY updated_at DESC",
+		"SELECT id, name, description, external_link, created_at, updated_at FROM projects ORDER BY updated_at DESC",
 	)
 	if err != nil {
 		return nil, err
@@ -134,7 +138,7 @@ func (d *Database) ListProjects() ([]*Project, error) {
 	var projects []*Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -142,7 +146,7 @@ func (d *Database) ListProjects() ([]*Project, error) {
 	return projects, rows.Err()
 }
 
-func (d *Database) UpdateProject(id int64, name, description *string) (*Project, error) {
+func (d *Database) UpdateProject(id int64, name, description, externalLink *string) (*Project, error) {
 	updates := []string{}
 	args := []interface{}{}
 
@@ -153,6 +157,10 @@ func (d *Database) UpdateProject(id int64, name, description *string) (*Project,
 	if description != nil {
 		updates = append(updates, "description = ?")
 		args = append(args, *description)
+	}
+	if externalLink != nil {
+		updates = append(updates, "external_link = ?")
+		args = append(args, *externalLink)
 	}
 
 	if len(updates) == 0 {
@@ -182,10 +190,10 @@ func (d *Database) DeleteProject(id int64) error {
 
 // Task operations
 
-func (d *Database) CreateTask(projectID int64, title, description, status, priority string) (*Task, error) {
+func (d *Database) CreateTask(projectID int64, title, description, status, priority, externalLink string) (*Task, error) {
 	result, err := d.db.Exec(
-		"INSERT INTO tasks (project_id, title, description, status, priority) VALUES (?, ?, ?, ?, ?)",
-		projectID, title, description, status, priority,
+		"INSERT INTO tasks (project_id, title, description, status, priority, external_link) VALUES (?, ?, ?, ?, ?, ?)",
+		projectID, title, description, status, priority, externalLink,
 	)
 	if err != nil {
 		return nil, err
@@ -202,9 +210,9 @@ func (d *Database) CreateTask(projectID int64, title, description, status, prior
 func (d *Database) GetTask(id int64) (*Task, error) {
 	var t Task
 	err := d.db.QueryRow(
-		"SELECT id, project_id, title, description, status, priority, created_at, updated_at FROM tasks WHERE id = ?",
+		"SELECT id, project_id, title, description, status, priority, external_link, created_at, updated_at FROM tasks WHERE id = ?",
 		id,
-	).Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.ExternalLink, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +220,7 @@ func (d *Database) GetTask(id int64) (*Task, error) {
 }
 
 func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) {
-	query := "SELECT id, project_id, title, description, status, priority, created_at, updated_at FROM tasks WHERE 1=1"
+	query := "SELECT id, project_id, title, description, status, priority, external_link, created_at, updated_at FROM tasks WHERE 1=1"
 	args := []interface{}{}
 
 	if projectID != nil {
@@ -236,7 +244,7 @@ func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) 
 	var tasks []*Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.ExternalLink, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, &t)
@@ -244,7 +252,7 @@ func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) 
 	return tasks, rows.Err()
 }
 
-func (d *Database) UpdateTask(id int64, title, description, status, priority *string) (*Task, error) {
+func (d *Database) UpdateTask(id int64, title, description, status, priority, externalLink *string) (*Task, error) {
 	updates := []string{}
 	args := []interface{}{}
 
@@ -263,6 +271,10 @@ func (d *Database) UpdateTask(id int64, title, description, status, priority *st
 	if priority != nil {
 		updates = append(updates, "priority = ?")
 		args = append(args, *priority)
+	}
+	if externalLink != nil {
+		updates = append(updates, "external_link = ?")
+		args = append(args, *externalLink)
 	}
 
 	if len(updates) == 0 {

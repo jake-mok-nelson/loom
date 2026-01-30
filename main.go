@@ -76,6 +76,10 @@ func createProjectTool() mcp.Tool {
 					"type":        "string",
 					"description": "Project description",
 				},
+				"external_link": map[string]interface{}{
+					"type":        "string",
+					"description": "External link to ticket system or other tracking tool",
+				},
 			},
 			Required: []string{"name"},
 		},
@@ -93,7 +97,12 @@ func createProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult
 		description = desc
 	}
 
-	project, err := db.CreateProject(name, description)
+	externalLink := ""
+	if link, ok := arguments["external_link"].(string); ok {
+		externalLink = link
+	}
+
+	project, err := db.CreateProject(name, description, externalLink)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
@@ -124,7 +133,11 @@ func listProjectsHandler(arguments map[string]interface{}) (*mcp.CallToolResult,
 
 	result := "Projects:\n"
 	for _, p := range projects {
-		result += fmt.Sprintf("- ID: %d, Name: %s, Description: %s\n", p.ID, p.Name, p.Description)
+		externalLinkStr := ""
+		if p.ExternalLink != "" {
+			externalLinkStr = fmt.Sprintf(", External Link: %s", p.ExternalLink)
+		}
+		result += fmt.Sprintf("- ID: %d, Name: %s, Description: %s%s\n", p.ID, p.Name, p.Description, externalLinkStr)
 	}
 
 	return mcp.NewToolResultText(result), nil
@@ -159,8 +172,8 @@ func getProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
 
-	result := fmt.Sprintf("Project Details:\nID: %d\nName: %s\nDescription: %s\nCreated: %s\nUpdated: %s",
-		project.ID, project.Name, project.Description, project.CreatedAt, project.UpdatedAt)
+	result := fmt.Sprintf("Project Details:\nID: %d\nName: %s\nDescription: %s\nExternal Link: %s\nCreated: %s\nUpdated: %s",
+		project.ID, project.Name, project.Description, project.ExternalLink, project.CreatedAt, project.UpdatedAt)
 
 	return mcp.NewToolResultText(result), nil
 }
@@ -183,6 +196,10 @@ func updateProjectTool() mcp.Tool {
 				"description": map[string]interface{}{
 					"type":        "string",
 					"description": "Project description (optional)",
+				},
+				"external_link": map[string]interface{}{
+					"type":        "string",
+					"description": "External link to ticket system or other tracking tool (optional)",
 				},
 			},
 			Required: []string{"id"},
@@ -207,11 +224,16 @@ func updateProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult
 		description = &desc
 	}
 
-	if name == nil && description == nil {
-		return mcp.NewToolResultError("at least one field (name or description) must be provided for update"), nil
+	var externalLink *string
+	if link, ok := arguments["external_link"].(string); ok {
+		externalLink = &link
 	}
 
-	project, err := db.UpdateProject(id, name, description)
+	if name == nil && description == nil && externalLink == nil {
+		return mcp.NewToolResultError("at least one field (name, description, or external_link) must be provided for update"), nil
+	}
+
+	project, err := db.UpdateProject(id, name, description, externalLink)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}
@@ -281,6 +303,10 @@ func createTaskTool() mcp.Tool {
 					"description": "Task priority (low, medium, high, urgent)",
 					"default":     "medium",
 				},
+				"external_link": map[string]interface{}{
+					"type":        "string",
+					"description": "External link to ticket system or other tracking tool",
+				},
 			},
 			Required: []string{"project_id", "title"},
 		},
@@ -326,7 +352,12 @@ func createTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 		priority = p
 	}
 
-	task, err := db.CreateTask(projectID, title, description, status, priority)
+	externalLink := ""
+	if link, ok := arguments["external_link"].(string); ok {
+		externalLink = link
+	}
+
+	task, err := db.CreateTask(projectID, title, description, status, priority, externalLink)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create task: %v", err)), nil
 	}
@@ -397,8 +428,12 @@ func listTasksHandler(arguments map[string]interface{}) (*mcp.CallToolResult, er
 
 	result := "Tasks:\n"
 	for _, t := range tasks {
-		result += fmt.Sprintf("- ID: %d, ProjectID: %d, Title: %s, Status: %s, Priority: %s\n",
-			t.ID, t.ProjectID, t.Title, t.Status, t.Priority)
+		externalLinkStr := ""
+		if t.ExternalLink != "" {
+			externalLinkStr = fmt.Sprintf(", External Link: %s", t.ExternalLink)
+		}
+		result += fmt.Sprintf("- ID: %d, ProjectID: %d, Title: %s, Status: %s, Priority: %s%s\n",
+			t.ID, t.ProjectID, t.Title, t.Status, t.Priority, externalLinkStr)
 	}
 
 	return mcp.NewToolResultText(result), nil
@@ -433,8 +468,8 @@ func getTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, erro
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get task: %v", err)), nil
 	}
 
-	result := fmt.Sprintf("Task Details:\nID: %d\nProject ID: %d\nTitle: %s\nDescription: %s\nStatus: %s\nPriority: %s\nCreated: %s\nUpdated: %s",
-		task.ID, task.ProjectID, task.Title, task.Description, task.Status, task.Priority, task.CreatedAt, task.UpdatedAt)
+	result := fmt.Sprintf("Task Details:\nID: %d\nProject ID: %d\nTitle: %s\nDescription: %s\nStatus: %s\nPriority: %s\nExternal Link: %s\nCreated: %s\nUpdated: %s",
+		task.ID, task.ProjectID, task.Title, task.Description, task.Status, task.Priority, task.ExternalLink, task.CreatedAt, task.UpdatedAt)
 
 	return mcp.NewToolResultText(result), nil
 }
@@ -465,6 +500,10 @@ func updateTaskTool() mcp.Tool {
 				"priority": map[string]interface{}{
 					"type":        "string",
 					"description": "Task priority: low, medium, high, urgent (optional)",
+				},
+				"external_link": map[string]interface{}{
+					"type":        "string",
+					"description": "External link to ticket system or other tracking tool (optional)",
 				},
 			},
 			Required: []string{"id"},
@@ -505,11 +544,16 @@ func updateTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 		priority = &p
 	}
 
-	if title == nil && description == nil && status == nil && priority == nil {
-		return mcp.NewToolResultError("at least one field (title, description, status, or priority) must be provided for update"), nil
+	var externalLink *string
+	if link, ok := arguments["external_link"].(string); ok {
+		externalLink = &link
 	}
 
-	task, err := db.UpdateTask(id, title, description, status, priority)
+	if title == nil && description == nil && status == nil && priority == nil && externalLink == nil {
+		return mcp.NewToolResultError("at least one field (title, description, status, priority, or external_link) must be provided for update"), nil
+	}
+
+	task, err := db.UpdateTask(id, title, description, status, priority, externalLink)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update task: %v", err)), nil
 	}
