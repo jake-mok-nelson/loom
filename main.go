@@ -439,9 +439,9 @@ func isValidOutcomeStatus(status string) bool {
 
 func isValidGoalType(goalType string) bool {
 	validTypes := map[string]bool{
-		"short_term": true,
-		"career":     true,
-		"values":     true,
+		"short_term":  true,
+		"career":      true,
+		"values":      true,
 		"requirement": true,
 	}
 	return validTypes[goalType]
