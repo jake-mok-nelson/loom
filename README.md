@@ -5,7 +5,9 @@ Loom is an MCP (Model Context Protocol) server that efficiently and simply helps
 ## Features
 
 - **Project Management**: Create, list, get, update, and delete projects
-- **Task Management**: Create, list, get, update, and delete tasks with status and priority tracking
+- **Task Management**: Create, list, get, update, and delete tasks with status, priority, type, and notes
+- **Problem Tracking**: Capture problems linked to projects and optionally to specific tasks
+- **Outcome Tracking**: Track outcomes linked to projects and optionally to tasks for progress over time
 - **Local Storage**: All data stored in a local SQLite database (default: `~/.loom/loom.db`)
 - **MCP Integration**: Works seamlessly with any MCP-compatible LLM client
 
@@ -85,15 +87,17 @@ Create a new task in a project.
 - `project_id` (number, required): Project ID
 - `title` (string, required): Task title
 - `description` (string, optional): Task description
+- `task_type` (string, optional): Task type (general, chore, investigation, feature, bugfix) - default: "general"
 - `status` (string, optional): Task status (pending, in_progress, completed, blocked) - default: "pending"
 - `priority` (string, optional): Task priority (low, medium, high, urgent) - default: "medium"
 - `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### list_tasks
-List tasks, optionally filtered by project and/or status.
+List tasks, optionally filtered by project, type, and/or status.
 
 **Arguments:**
 - `project_id` (number, optional): Filter by project ID
+- `task_type` (string, optional): Filter by task type
 - `status` (string, optional): Filter by status
 
 #### get_task
@@ -111,6 +115,7 @@ Update an existing task. Only provided fields will be updated.
 - `description` (string, optional): Task description
 - `status` (string, optional): Task status (pending, in_progress, completed, blocked)
 - `priority` (string, optional): Task priority (low, medium, high, urgent)
+- `task_type` (string, optional): Task type (general, chore, investigation, feature, bugfix)
 - `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### delete_task
@@ -118,6 +123,122 @@ Delete a task.
 
 **Arguments:**
 - `id` (number, required): Task ID
+
+### Problem Management
+
+#### create_problem
+Create a new problem linked to a project and optionally to a task.
+
+**Arguments:**
+- `project_id` (number, required): Project ID
+- `task_id` (number, optional): Task ID (must belong to the project)
+- `title` (string, required): Problem title
+- `description` (string, optional): Problem description
+- `status` (string, optional): Problem status (open, in_progress, resolved, blocked) - default: "open"
+
+#### list_problems
+List problems, optionally filtered by project, task, and/or status.
+
+**Arguments:**
+- `project_id` (number, optional): Filter by project ID
+- `task_id` (number, optional): Filter by task ID
+- `status` (string, optional): Filter by status
+
+#### get_problem
+Get details of a specific problem.
+
+**Arguments:**
+- `id` (number, required): Problem ID
+
+#### update_problem
+Update an existing problem. Only provided fields will be updated.
+
+**Arguments:**
+- `id` (number, required): Problem ID
+- `title` (string, optional): Problem title
+- `description` (string, optional): Problem description
+- `status` (string, optional): Problem status (open, in_progress, resolved, blocked)
+
+#### delete_problem
+Delete a problem.
+
+**Arguments:**
+- `id` (number, required): Problem ID
+
+### Outcome Management
+
+#### create_outcome
+Create a new outcome linked to a project and optionally to a task.
+
+**Arguments:**
+- `project_id` (number, required): Project ID
+- `task_id` (number, optional): Task ID (must belong to the project)
+- `title` (string, required): Outcome title
+- `description` (string, optional): Outcome description
+- `status` (string, optional): Outcome status (open, in_progress, completed, blocked) - default: "open"
+
+#### list_outcomes
+List outcomes, optionally filtered by project, task, and/or status.
+
+**Arguments:**
+- `project_id` (number, optional): Filter by project ID
+- `task_id` (number, optional): Filter by task ID
+- `status` (string, optional): Filter by status
+
+#### get_outcome
+Get details of a specific outcome.
+
+**Arguments:**
+- `id` (number, required): Outcome ID
+
+#### update_outcome
+Update an existing outcome. Only provided fields will be updated.
+
+**Arguments:**
+- `id` (number, required): Outcome ID
+- `title` (string, optional): Outcome title
+- `description` (string, optional): Outcome description
+- `status` (string, optional): Outcome status (open, in_progress, completed, blocked)
+
+#### delete_outcome
+Delete an outcome.
+
+**Arguments:**
+- `id` (number, required): Outcome ID
+
+### Task Note Management
+
+#### create_task_note
+Create a note on a task.
+
+**Arguments:**
+- `task_id` (number, required): Task ID
+- `note` (string, required): Note content
+
+#### list_task_notes
+List notes for a task.
+
+**Arguments:**
+- `task_id` (number, required): Task ID
+
+#### get_task_note
+Get details of a specific task note.
+
+**Arguments:**
+- `id` (number, required): Task note ID
+
+#### update_task_note
+Update an existing task note.
+
+**Arguments:**
+- `id` (number, required): Task note ID
+- `note` (string, required): Note content
+
+#### delete_task_note
+Delete a task note.
+
+**Arguments:**
+- `id` (number, required): Task note ID
 
 ## Usage with MCP Clients
 
