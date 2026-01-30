@@ -465,6 +465,9 @@ func listTasksHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 
 	var status *string
 	if s, ok := arguments["status"].(string); ok {
+		if !isValidProblemStatus(s) {
+			return mcp.NewToolResultError("status must be one of: open, in_progress, resolved, blocked"), nil
+		}
 		status = &s
 	}
 
@@ -901,6 +904,9 @@ func updateProblemHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	var status *string
 	if s, ok := arguments["status"].(string); ok {
+		if !isValidOutcomeStatus(s) {
+			return mcp.NewToolResultError("status must be one of: open, in_progress, completed, blocked"), nil
+		}
 		status = &s
 	}
 

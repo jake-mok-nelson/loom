@@ -169,11 +169,6 @@ func (d *Database) initSchema() error {
 	if _, err := d.db.Exec("UPDATE tasks SET task_type = 'general' WHERE task_type IS NULL OR task_type = ''"); err != nil {
 		return err
 	}
-	if _, err := d.db.Exec("ALTER TABLE problems ADD COLUMN task_id INTEGER"); err != nil {
-		if !strings.Contains(err.Error(), "duplicate column name") {
-			return err
-		}
-	}
 
 	indexes := `
 	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
