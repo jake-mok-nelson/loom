@@ -178,14 +178,14 @@ func updateProjectTool() mcp.Tool {
 				},
 				"name": map[string]interface{}{
 					"type":        "string",
-					"description": "Project name",
+					"description": "Project name (optional)",
 				},
 				"description": map[string]interface{}{
 					"type":        "string",
-					"description": "Project description",
+					"description": "Project description (optional)",
 				},
 			},
-			Required: []string{"id", "name"},
+			Required: []string{"id"},
 		},
 	}
 }
@@ -197,14 +197,18 @@ func updateProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult
 	}
 	id := int64(idFloat)
 
-	name, ok := arguments["name"].(string)
-	if !ok {
-		return mcp.NewToolResultError("name is required and must be a string"), nil
+	var name *string
+	if n, ok := arguments["name"].(string); ok {
+		name = &n
 	}
 
-	description := ""
+	var description *string
 	if desc, ok := arguments["description"].(string); ok {
-		description = desc
+		description = &desc
+	}
+
+	if name == nil && description == nil {
+		return mcp.NewToolResultError("at least one field (name or description) must be provided for update"), nil
 	}
 
 	project, err := db.UpdateProject(id, name, description)
@@ -290,6 +294,12 @@ func createTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 	}
 	projectID := int64(projectIDFloat)
 
+	// Check if project exists
+	_, err := db.GetProject(projectID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Project with ID %d does not exist", projectID)), nil
+	}
+
 	title, ok := arguments["title"].(string)
 	if !ok {
 		return mcp.NewToolResultError("title is required and must be a string"), nil
@@ -302,11 +312,17 @@ func createTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 
 	status := "pending"
 	if s, ok := arguments["status"].(string); ok {
+		if !isValidStatus(s) {
+			return mcp.NewToolResultError("status must be one of: pending, in_progress, completed, blocked"), nil
+		}
 		status = s
 	}
 
 	priority := "medium"
 	if p, ok := arguments["priority"].(string); ok {
+		if !isValidPriority(p) {
+			return mcp.NewToolResultError("priority must be one of: low, medium, high, urgent"), nil
+		}
 		priority = p
 	}
 
@@ -316,6 +332,26 @@ func createTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Task created successfully: ID=%d, Title=%s, Status=%s", task.ID, task.Title, task.Status)), nil
+}
+
+func isValidStatus(status string) bool {
+	validStatuses := map[string]bool{
+		"pending":     true,
+		"in_progress": true,
+		"completed":   true,
+		"blocked":     true,
+	}
+	return validStatuses[status]
+}
+
+func isValidPriority(priority string) bool {
+	validPriorities := map[string]bool{
+		"low":    true,
+		"medium": true,
+		"high":   true,
+		"urgent": true,
+	}
+	return validPriorities[priority]
 }
 
 func listTasksTool() mcp.Tool {
@@ -416,22 +452,22 @@ func updateTaskTool() mcp.Tool {
 				},
 				"title": map[string]interface{}{
 					"type":        "string",
-					"description": "Task title",
+					"description": "Task title (optional)",
 				},
 				"description": map[string]interface{}{
 					"type":        "string",
-					"description": "Task description",
+					"description": "Task description (optional)",
 				},
 				"status": map[string]interface{}{
 					"type":        "string",
-					"description": "Task status (pending, in_progress, completed, blocked)",
+					"description": "Task status: pending, in_progress, completed, blocked (optional)",
 				},
 				"priority": map[string]interface{}{
 					"type":        "string",
-					"description": "Task priority (low, medium, high, urgent)",
+					"description": "Task priority: low, medium, high, urgent (optional)",
 				},
 			},
-			Required: []string{"id", "title"},
+			Required: []string{"id"},
 		},
 	}
 }
@@ -443,24 +479,34 @@ func updateTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, e
 	}
 	id := int64(idFloat)
 
-	title, ok := arguments["title"].(string)
-	if !ok {
-		return mcp.NewToolResultError("title is required and must be a string"), nil
+	var title *string
+	if t, ok := arguments["title"].(string); ok {
+		title = &t
 	}
 
-	description := ""
+	var description *string
 	if desc, ok := arguments["description"].(string); ok {
-		description = desc
+		description = &desc
 	}
 
-	status := "pending"
+	var status *string
 	if s, ok := arguments["status"].(string); ok {
-		status = s
+		if !isValidStatus(s) {
+			return mcp.NewToolResultError("status must be one of: pending, in_progress, completed, blocked"), nil
+		}
+		status = &s
 	}
 
-	priority := "medium"
+	var priority *string
 	if p, ok := arguments["priority"].(string); ok {
-		priority = p
+		if !isValidPriority(p) {
+			return mcp.NewToolResultError("priority must be one of: low, medium, high, urgent"), nil
+		}
+		priority = &p
+	}
+
+	if title == nil && description == nil && status == nil && priority == nil {
+		return mcp.NewToolResultError("at least one field (title, description, status, or priority) must be provided for update"), nil
 	}
 
 	task, err := db.UpdateTask(id, title, description, status, priority)

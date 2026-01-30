@@ -13,7 +13,7 @@ Loom is an MCP (Model Context Protocol) server that efficiently and simply helps
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.23 or later
 
 ### Build from Source
 
@@ -61,11 +61,11 @@ Get details of a specific project.
 - `id` (number, required): Project ID
 
 #### update_project
-Update an existing project.
+Update an existing project. Only provided fields will be updated.
 
 **Arguments:**
 - `id` (number, required): Project ID
-- `name` (string, required): Project name
+- `name` (string, optional): Project name
 - `description` (string, optional): Project description
 
 #### delete_project
@@ -100,14 +100,14 @@ Get details of a specific task.
 - `id` (number, required): Task ID
 
 #### update_task
-Update an existing task.
+Update an existing task. Only provided fields will be updated.
 
 **Arguments:**
 - `id` (number, required): Task ID
-- `title` (string, required): Task title
+- `title` (string, optional): Task title
 - `description` (string, optional): Task description
-- `status` (string, optional): Task status
-- `priority` (string, optional): Task priority
+- `status` (string, optional): Task status (pending, in_progress, completed, blocked)
+- `priority` (string, optional): Task priority (low, medium, high, urgent)
 
 #### delete_task
 Delete a task.

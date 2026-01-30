@@ -142,11 +142,33 @@ func (d *Database) ListProjects() ([]*Project, error) {
 	return projects, rows.Err()
 }
 
-func (d *Database) UpdateProject(id int64, name, description string) (*Project, error) {
-	_, err := d.db.Exec(
-		"UPDATE projects SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-		name, description, id,
-	)
+func (d *Database) UpdateProject(id int64, name, description *string) (*Project, error) {
+	updates := []string{}
+	args := []interface{}{}
+
+	if name != nil {
+		updates = append(updates, "name = ?")
+		args = append(args, *name)
+	}
+	if description != nil {
+		updates = append(updates, "description = ?")
+		args = append(args, *description)
+	}
+
+	if len(updates) == 0 {
+		return d.GetProject(id)
+	}
+
+	updates = append(updates, "updated_at = CURRENT_TIMESTAMP")
+	args = append(args, id)
+
+	query := "UPDATE projects SET " + updates[0]
+	for i := 1; i < len(updates); i++ {
+		query += ", " + updates[i]
+	}
+	query += " WHERE id = ?"
+
+	_, err := d.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -222,11 +244,41 @@ func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) 
 	return tasks, rows.Err()
 }
 
-func (d *Database) UpdateTask(id int64, title, description, status, priority string) (*Task, error) {
-	_, err := d.db.Exec(
-		"UPDATE tasks SET title = ?, description = ?, status = ?, priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-		title, description, status, priority, id,
-	)
+func (d *Database) UpdateTask(id int64, title, description, status, priority *string) (*Task, error) {
+	updates := []string{}
+	args := []interface{}{}
+
+	if title != nil {
+		updates = append(updates, "title = ?")
+		args = append(args, *title)
+	}
+	if description != nil {
+		updates = append(updates, "description = ?")
+		args = append(args, *description)
+	}
+	if status != nil {
+		updates = append(updates, "status = ?")
+		args = append(args, *status)
+	}
+	if priority != nil {
+		updates = append(updates, "priority = ?")
+		args = append(args, *priority)
+	}
+
+	if len(updates) == 0 {
+		return d.GetTask(id)
+	}
+
+	updates = append(updates, "updated_at = CURRENT_TIMESTAMP")
+	args = append(args, id)
+
+	query := "UPDATE tasks SET " + updates[0]
+	for i := 1; i < len(updates); i++ {
+		query += ", " + updates[i]
+	}
+	query += " WHERE id = ?"
+
+	_, err := d.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
