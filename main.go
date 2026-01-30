@@ -465,14 +465,17 @@ func listTasksHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 
 	var status *string
 	if s, ok := arguments["status"].(string); ok {
-		if !isValidProblemStatus(s) {
-			return mcp.NewToolResultError("status must be one of: open, in_progress, resolved, blocked"), nil
+		if !isValidStatus(s) {
+			return mcp.NewToolResultError("status must be one of: pending, in_progress, completed, blocked"), nil
 		}
 		status = &s
 	}
 
 	var taskType *string
 	if t, ok := arguments["task_type"].(string); ok {
+		if !isValidTaskType(t) {
+			return mcp.NewToolResultError("task_type must be one of: general, chore, investigation, feature, bugfix"), nil
+		}
 		taskType = &t
 	}
 
@@ -904,8 +907,8 @@ func updateProblemHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	var status *string
 	if s, ok := arguments["status"].(string); ok {
-		if !isValidOutcomeStatus(s) {
-			return mcp.NewToolResultError("status must be one of: open, in_progress, completed, blocked"), nil
+		if !isValidProblemStatus(s) {
+			return mcp.NewToolResultError("status must be one of: open, in_progress, resolved, blocked"), nil
 		}
 		status = &s
 	}
@@ -1192,6 +1195,9 @@ func updateOutcomeHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	var status *string
 	if s, ok := arguments["status"].(string); ok {
+		if !isValidOutcomeStatus(s) {
+			return mcp.NewToolResultError("status must be one of: open, in_progress, completed, blocked"), nil
+		}
 		status = &s
 	}
 
