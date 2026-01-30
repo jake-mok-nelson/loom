@@ -40,6 +40,14 @@ func TestCreateProblemWithoutProject(t *testing.T) {
 	if loaded.ProjectID != nil {
 		t.Fatalf("expected nil project ID after load, got %d", *loaded.ProjectID)
 	}
+
+	problems, err := database.ListProblems(nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to list problems: %v", err)
+	}
+	if len(problems) != 1 {
+		t.Fatalf("expected 1 problem, got %d", len(problems))
+	}
 }
 
 func TestCreateGoalWithoutProject(t *testing.T) {
@@ -54,5 +62,30 @@ func TestCreateGoalWithoutProject(t *testing.T) {
 	}
 	if goal.GoalType != "career" {
 		t.Fatalf("expected goal type career, got %s", goal.GoalType)
+	}
+
+	goals, err := database.ListGoals(nil, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to list goals: %v", err)
+	}
+	if len(goals) != 1 {
+		t.Fatalf("expected 1 goal, got %d", len(goals))
+	}
+
+	updatedTitle := "Updated career goal"
+	updatedType := "values"
+	updated, err := database.UpdateGoal(goal.ID, &updatedTitle, nil, &updatedType)
+	if err != nil {
+		t.Fatalf("failed to update goal: %v", err)
+	}
+	if updated.Title != updatedTitle {
+		t.Fatalf("expected updated title %q, got %q", updatedTitle, updated.Title)
+	}
+	if updated.GoalType != updatedType {
+		t.Fatalf("expected updated goal type %q, got %q", updatedType, updated.GoalType)
+	}
+
+	if err := database.DeleteGoal(goal.ID); err != nil {
+		t.Fatalf("failed to delete goal: %v", err)
 	}
 }
