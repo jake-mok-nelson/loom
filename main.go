@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -86,21 +87,14 @@ func createProjectTool() mcp.Tool {
 	}
 }
 
-func createProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	name, ok := arguments["name"].(string)
-	if !ok {
+func createProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := request.RequireString("name")
+	if err != nil {
 		return mcp.NewToolResultError("name is required and must be a string"), nil
 	}
 
-	description := ""
-	if desc, ok := arguments["description"].(string); ok {
-		description = desc
-	}
-
-	externalLink := ""
-	if link, ok := arguments["external_link"].(string); ok {
-		externalLink = link
-	}
+	description := request.GetString("description", "")
+	externalLink := request.GetString("external_link", "")
 
 	project, err := db.CreateProject(name, description, externalLink)
 	if err != nil {
@@ -121,7 +115,7 @@ func listProjectsTool() mcp.Tool {
 	}
 }
 
-func listProjectsHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+func listProjectsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projects, err := db.ListProjects()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list projects: %v", err)), nil
@@ -160,9 +154,9 @@ func getProjectTool() mcp.Tool {
 	}
 }
 
-func getProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	idFloat, ok := arguments["id"].(float64)
-	if !ok {
+func getProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
 		return mcp.NewToolResultError("id is required and must be a number"), nil
 	}
 	id := int64(idFloat)
@@ -207,12 +201,14 @@ func updateProjectTool() mcp.Tool {
 	}
 }
 
-func updateProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	idFloat, ok := arguments["id"].(float64)
-	if !ok {
+func updateProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
 		return mcp.NewToolResultError("id is required and must be a number"), nil
 	}
 	id := int64(idFloat)
+
+	arguments := request.GetArguments()
 
 	var name *string
 	if n, ok := arguments["name"].(string); ok {
@@ -258,9 +254,9 @@ func deleteProjectTool() mcp.Tool {
 	}
 }
 
-func deleteProjectHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	idFloat, ok := arguments["id"].(float64)
-	if !ok {
+func deleteProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
 		return mcp.NewToolResultError("id is required and must be a number"), nil
 	}
 	id := int64(idFloat)
@@ -313,49 +309,37 @@ func createTaskTool() mcp.Tool {
 	}
 }
 
-func createTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	projectIDFloat, ok := arguments["project_id"].(float64)
-	if !ok {
+func createTaskHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectIDFloat, err := request.RequireFloat("project_id")
+	if err != nil {
 		return mcp.NewToolResultError("project_id is required and must be a number"), nil
 	}
 	projectID := int64(projectIDFloat)
 
 	// Check if project exists
-	_, err := db.GetProject(projectID)
+	_, err = db.GetProject(projectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Project with ID %d does not exist", projectID)), nil
 	}
 
-	title, ok := arguments["title"].(string)
-	if !ok {
+	title, err := request.RequireString("title")
+	if err != nil {
 		return mcp.NewToolResultError("title is required and must be a string"), nil
 	}
 
-	description := ""
-	if desc, ok := arguments["description"].(string); ok {
-		description = desc
+	description := request.GetString("description", "")
+
+	status := request.GetString("status", "pending")
+	if !isValidStatus(status) {
+		return mcp.NewToolResultError("status must be one of: pending, in_progress, completed, blocked"), nil
 	}
 
-	status := "pending"
-	if s, ok := arguments["status"].(string); ok {
-		if !isValidStatus(s) {
-			return mcp.NewToolResultError("status must be one of: pending, in_progress, completed, blocked"), nil
-		}
-		status = s
+	priority := request.GetString("priority", "medium")
+	if !isValidPriority(priority) {
+		return mcp.NewToolResultError("priority must be one of: low, medium, high, urgent"), nil
 	}
 
-	priority := "medium"
-	if p, ok := arguments["priority"].(string); ok {
-		if !isValidPriority(p) {
-			return mcp.NewToolResultError("priority must be one of: low, medium, high, urgent"), nil
-		}
-		priority = p
-	}
-
-	externalLink := ""
-	if link, ok := arguments["external_link"].(string); ok {
-		externalLink = link
-	}
+	externalLink := request.GetString("external_link", "")
 
 	task, err := db.CreateTask(projectID, title, description, status, priority, externalLink)
 	if err != nil {
@@ -405,7 +389,9 @@ func listTasksTool() mcp.Tool {
 	}
 }
 
-func listTasksHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+func listTasksHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	arguments := request.GetArguments()
+
 	var projectID *int64
 	if idFloat, ok := arguments["project_id"].(float64); ok {
 		id := int64(idFloat)
@@ -456,9 +442,9 @@ func getTaskTool() mcp.Tool {
 	}
 }
 
-func getTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	idFloat, ok := arguments["id"].(float64)
-	if !ok {
+func getTaskHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
 		return mcp.NewToolResultError("id is required and must be a number"), nil
 	}
 	id := int64(idFloat)
@@ -511,12 +497,14 @@ func updateTaskTool() mcp.Tool {
 	}
 }
 
-func updateTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	idFloat, ok := arguments["id"].(float64)
-	if !ok {
+func updateTaskHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
 		return mcp.NewToolResultError("id is required and must be a number"), nil
 	}
 	id := int64(idFloat)
+
+	arguments := request.GetArguments()
 
 	var title *string
 	if t, ok := arguments["title"].(string); ok {
@@ -578,9 +566,9 @@ func deleteTaskTool() mcp.Tool {
 	}
 }
 
-func deleteTaskHandler(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	idFloat, ok := arguments["id"].(float64)
-	if !ok {
+func deleteTaskHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
 		return mcp.NewToolResultError("id is required and must be a number"), nil
 	}
 	id := int64(idFloat)

@@ -48,6 +48,12 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Enable foreign key enforcement (required for ON DELETE CASCADE)
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	}
+
 	database := &Database{db: db}
 	if err := database.initSchema(); err != nil {
 		db.Close()
@@ -184,8 +190,18 @@ func (d *Database) UpdateProject(id int64, name, description, externalLink *stri
 }
 
 func (d *Database) DeleteProject(id int64) error {
-	_, err := d.db.Exec("DELETE FROM projects WHERE id = ?", id)
-	return err
+	result, err := d.db.Exec("DELETE FROM projects WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("project with ID %d not found", id)
+	}
+	return nil
 }
 
 // Task operations
@@ -298,6 +314,16 @@ func (d *Database) UpdateTask(id int64, title, description, status, priority, ex
 }
 
 func (d *Database) DeleteTask(id int64) error {
-	_, err := d.db.Exec("DELETE FROM tasks WHERE id = ?", id)
-	return err
+	result, err := d.db.Exec("DELETE FROM tasks WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("task with ID %d not found", id)
+	}
+	return nil
 }
