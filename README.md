@@ -7,6 +7,7 @@ Loom is an MCP (Model Context Protocol) server that efficiently and simply helps
 - **Project Management**: Create, list, get, update, and delete projects
 - **Task Management**: Create, list, get, update, and delete tasks with status, priority, type, and notes
 - **Problem Tracking**: Capture problems linked to projects and optionally to specific tasks
+- **Goal Tracking**: Capture goals with optional project/task links and goal types
 - **Outcome Tracking**: Track outcomes linked to projects and optionally to tasks for progress over time
 - **Local Storage**: All data stored in a local SQLite database (default: `~/.loom/loom.db`)
 - **MCP Integration**: Works seamlessly with any MCP-compatible LLM client
@@ -127,11 +128,11 @@ Delete a task.
 ### Problem Management
 
 #### create_problem
-Create a new problem linked to a project and optionally to a task.
+Create a new problem optionally linked to a project and/or task.
 
 **Arguments:**
-- `project_id` (number, required): Project ID
-- `task_id` (number, optional): Task ID (must belong to the project)
+- `project_id` (number, optional): Project ID
+- `task_id` (number, optional): Task ID (must belong to the project if provided)
 - `title` (string, required): Problem title
 - `description` (string, optional): Problem description
 - `status` (string, optional): Problem status (open, in_progress, resolved, blocked) - default: "open"
@@ -205,6 +206,47 @@ Delete an outcome.
 
 **Arguments:**
 - `id` (number, required): Outcome ID
+
+### Goal Management
+
+#### create_goal
+Create a new goal linked optionally to a project and/or task.
+
+**Arguments:**
+- `project_id` (number, optional): Project ID
+- `task_id` (number, optional): Task ID (must belong to the project if provided)
+- `title` (string, required): Goal title
+- `description` (string, optional): Goal description
+- `goal_type` (string, optional): Goal type (short_term, career, values, requirement) - default: "short_term"
+
+#### list_goals
+List goals, optionally filtered by project, task, and/or goal type.
+
+**Arguments:**
+- `project_id` (number, optional): Filter by project ID
+- `task_id` (number, optional): Filter by task ID
+- `goal_type` (string, optional): Filter by goal type
+
+#### get_goal
+Get details of a specific goal.
+
+**Arguments:**
+- `id` (number, required): Goal ID
+
+#### update_goal
+Update an existing goal. Only provided fields will be updated.
+
+**Arguments:**
+- `id` (number, required): Goal ID
+- `title` (string, optional): Goal title
+- `description` (string, optional): Goal description
+- `goal_type` (string, optional): Goal type (short_term, career, values, requirement)
+
+#### delete_goal
+Delete a goal.
+
+**Arguments:**
+- `id` (number, required): Goal ID
 
 ### Task Note Management
 
