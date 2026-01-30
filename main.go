@@ -68,6 +68,13 @@ func main() {
 	s.AddTool(updateOutcomeTool(), updateOutcomeHandler)
 	s.AddTool(deleteOutcomeTool(), deleteOutcomeHandler)
 
+	// Register goal management tools
+	s.AddTool(createGoalTool(), createGoalHandler)
+	s.AddTool(listGoalsTool(), listGoalsHandler)
+	s.AddTool(getGoalTool(), getGoalHandler)
+	s.AddTool(updateGoalTool(), updateGoalHandler)
+	s.AddTool(deleteGoalTool(), deleteGoalHandler)
+
 	// Register task note management tools
 	s.AddTool(createTaskNoteTool(), createTaskNoteHandler)
 	s.AddTool(listTaskNotesTool(), listTaskNotesHandler)
@@ -430,6 +437,16 @@ func isValidOutcomeStatus(status string) bool {
 	return validStatuses[status]
 }
 
+func isValidGoalType(goalType string) bool {
+	validTypes := map[string]bool{
+		"short_term":  true,
+		"career":      true,
+		"values":      true,
+		"requirement": true,
+	}
+	return validTypes[goalType]
+}
+
 func listTasksTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "list_tasks",
@@ -673,13 +690,13 @@ func deleteTaskHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 func createProblemTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "create_problem",
-		Description: "Create a new problem linked to work in a project",
+		Description: "Create a new problem with optional project or task links",
 		InputSchema: mcp.ToolInputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
 				"project_id": map[string]interface{}{
 					"type":        "number",
-					"description": "Project ID",
+					"description": "Optional project ID",
 				},
 				"task_id": map[string]interface{}{
 					"type":        "number",
@@ -699,24 +716,24 @@ func createProblemTool() mcp.Tool {
 					"default":     "open",
 				},
 			},
-			Required: []string{"project_id", "title"},
+			Required: []string{"title"},
 		},
 	}
 }
 
 func createProblemHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	projectIDFloat, err := request.RequireFloat("project_id")
-	if err != nil {
-		return mcp.NewToolResultError("project_id is required and must be a number"), nil
-	}
-	projectID := int64(projectIDFloat)
-
-	_, err = db.GetProject(projectID)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Project with ID %d does not exist", projectID)), nil
-	}
-
 	arguments := request.GetArguments()
+
+	var projectID *int64
+	if projectIDFloat, ok := arguments["project_id"].(float64); ok {
+		projectIDValue := int64(projectIDFloat)
+		_, err := db.GetProject(projectIDValue)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Project with ID %d does not exist", projectIDValue)), nil
+		}
+		projectID = &projectIDValue
+	}
+
 	var taskID *int64
 	if taskIDFloat, ok := arguments["task_id"].(float64); ok {
 		taskIDValue := int64(taskIDFloat)
@@ -724,10 +741,13 @@ func createProblemHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Task with ID %d does not exist", taskIDValue)), nil
 		}
-		if task.ProjectID != projectID {
+		if projectID != nil && task.ProjectID != *projectID {
 			return mcp.NewToolResultError("task_id must belong to the same project"), nil
 		}
 		taskID = &taskIDValue
+		if projectID == nil {
+			projectID = &task.ProjectID
+		}
 	}
 
 	title, err := request.RequireString("title")
@@ -811,8 +831,12 @@ func listProblemsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		if p.TaskID != nil {
 			taskInfo = fmt.Sprintf("%d", *p.TaskID)
 		}
-		result += fmt.Sprintf("- ID: %d, ProjectID: %d, TaskID: %s, Title: %s, Status: %s\n",
-			p.ID, p.ProjectID, taskInfo, p.Title, p.Status)
+		projectInfo := "none"
+		if p.ProjectID != nil {
+			projectInfo = fmt.Sprintf("%d", *p.ProjectID)
+		}
+		result += fmt.Sprintf("- ID: %d, ProjectID: %s, TaskID: %s, Title: %s, Status: %s\n",
+			p.ID, projectInfo, taskInfo, p.Title, p.Status)
 	}
 
 	return mcp.NewToolResultText(result), nil
@@ -851,8 +875,12 @@ func getProblemHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 	if problem.TaskID != nil {
 		taskInfo = fmt.Sprintf("%d", *problem.TaskID)
 	}
-	result := fmt.Sprintf("Problem Details:\nID: %d\nProject ID: %d\nTask ID: %s\nTitle: %s\nDescription: %s\nStatus: %s\nCreated: %s\nUpdated: %s",
-		problem.ID, problem.ProjectID, taskInfo, problem.Title, problem.Description, problem.Status, problem.CreatedAt, problem.UpdatedAt)
+	projectInfo := "none"
+	if problem.ProjectID != nil {
+		projectInfo = fmt.Sprintf("%d", *problem.ProjectID)
+	}
+	result := fmt.Sprintf("Problem Details:\nID: %d\nProject ID: %s\nTask ID: %s\nTitle: %s\nDescription: %s\nStatus: %s\nCreated: %s\nUpdated: %s",
+		problem.ID, projectInfo, taskInfo, problem.Title, problem.Description, problem.Status, problem.CreatedAt, problem.UpdatedAt)
 
 	return mcp.NewToolResultText(result), nil
 }
@@ -1242,6 +1270,305 @@ func deleteOutcomeHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Outcome %d deleted successfully", id)), nil
+}
+
+// Goal management tools
+
+func createGoalTool() mcp.Tool {
+	return mcp.Tool{
+		Name:        "create_goal",
+		Description: "Create a goal with optional project or task links",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"project_id": map[string]interface{}{
+					"type":        "number",
+					"description": "Optional project ID",
+				},
+				"task_id": map[string]interface{}{
+					"type":        "number",
+					"description": "Optional task ID to link the goal to specific work",
+				},
+				"title": map[string]interface{}{
+					"type":        "string",
+					"description": "Goal title",
+				},
+				"description": map[string]interface{}{
+					"type":        "string",
+					"description": "Goal description",
+				},
+				"goal_type": map[string]interface{}{
+					"type":        "string",
+					"description": "Goal type (short_term, career, values, requirement)",
+					"default":     "short_term",
+				},
+			},
+			Required: []string{"title"},
+		},
+	}
+}
+
+func createGoalHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	arguments := request.GetArguments()
+
+	var projectID *int64
+	if projectIDFloat, ok := arguments["project_id"].(float64); ok {
+		projectIDValue := int64(projectIDFloat)
+		_, err := db.GetProject(projectIDValue)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Project with ID %d does not exist", projectIDValue)), nil
+		}
+		projectID = &projectIDValue
+	}
+
+	var taskID *int64
+	if taskIDFloat, ok := arguments["task_id"].(float64); ok {
+		taskIDValue := int64(taskIDFloat)
+		task, err := db.GetTask(taskIDValue)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Task with ID %d does not exist", taskIDValue)), nil
+		}
+		if projectID != nil && task.ProjectID != *projectID {
+			return mcp.NewToolResultError("task_id must belong to the same project"), nil
+		}
+		taskID = &taskIDValue
+		if projectID == nil {
+			projectID = &task.ProjectID
+		}
+	}
+
+	title, err := request.RequireString("title")
+	if err != nil {
+		return mcp.NewToolResultError("title is required and must be a string"), nil
+	}
+
+	description := request.GetString("description", "")
+	goalType := request.GetString("goal_type", "short_term")
+	if !isValidGoalType(goalType) {
+		return mcp.NewToolResultError("goal_type must be one of: short_term, career, values, requirement"), nil
+	}
+
+	goal, err := db.CreateGoal(projectID, taskID, title, description, goalType)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create goal: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Goal created successfully: ID=%d, Title=%s, Type=%s", goal.ID, goal.Title, goal.GoalType)), nil
+}
+
+func listGoalsTool() mcp.Tool {
+	return mcp.Tool{
+		Name:        "list_goals",
+		Description: "List goals, optionally filtered by project, task, and goal type",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"project_id": map[string]interface{}{
+					"type":        "number",
+					"description": "Filter by project ID",
+				},
+				"task_id": map[string]interface{}{
+					"type":        "number",
+					"description": "Filter by task ID",
+				},
+				"goal_type": map[string]interface{}{
+					"type":        "string",
+					"description": "Filter by goal type (short_term, career, values, requirement)",
+				},
+			},
+		},
+	}
+}
+
+func listGoalsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	arguments := request.GetArguments()
+
+	var projectID *int64
+	if idFloat, ok := arguments["project_id"].(float64); ok {
+		id := int64(idFloat)
+		projectID = &id
+	}
+
+	var taskID *int64
+	if taskIDFloat, ok := arguments["task_id"].(float64); ok {
+		id := int64(taskIDFloat)
+		taskID = &id
+	}
+
+	var goalType *string
+	if t, ok := arguments["goal_type"].(string); ok {
+		if !isValidGoalType(t) {
+			return mcp.NewToolResultError("goal_type must be one of: short_term, career, values, requirement"), nil
+		}
+		goalType = &t
+	}
+
+	goals, err := db.ListGoals(projectID, taskID, goalType)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to list goals: %v", err)), nil
+	}
+
+	if len(goals) == 0 {
+		return mcp.NewToolResultText("No goals found"), nil
+	}
+
+	result := "Goals:\n"
+	for _, g := range goals {
+		taskInfo := "none"
+		if g.TaskID != nil {
+			taskInfo = fmt.Sprintf("%d", *g.TaskID)
+		}
+		projectInfo := "none"
+		if g.ProjectID != nil {
+			projectInfo = fmt.Sprintf("%d", *g.ProjectID)
+		}
+		result += fmt.Sprintf("- ID: %d, ProjectID: %s, TaskID: %s, Title: %s, Type: %s\n",
+			g.ID, projectInfo, taskInfo, g.Title, g.GoalType)
+	}
+
+	return mcp.NewToolResultText(result), nil
+}
+
+func getGoalTool() mcp.Tool {
+	return mcp.Tool{
+		Name:        "get_goal",
+		Description: "Get details of a specific goal",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"id": map[string]interface{}{
+					"type":        "number",
+					"description": "Goal ID",
+				},
+			},
+			Required: []string{"id"},
+		},
+	}
+}
+
+func getGoalHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
+		return mcp.NewToolResultError("id is required and must be a number"), nil
+	}
+	id := int64(idFloat)
+
+	goal, err := db.GetGoal(id)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get goal: %v", err)), nil
+	}
+
+	taskInfo := "none"
+	if goal.TaskID != nil {
+		taskInfo = fmt.Sprintf("%d", *goal.TaskID)
+	}
+	projectInfo := "none"
+	if goal.ProjectID != nil {
+		projectInfo = fmt.Sprintf("%d", *goal.ProjectID)
+	}
+	result := fmt.Sprintf("Goal Details:\nID: %d\nProject ID: %s\nTask ID: %s\nTitle: %s\nDescription: %s\nType: %s\nCreated: %s\nUpdated: %s",
+		goal.ID, projectInfo, taskInfo, goal.Title, goal.Description, goal.GoalType, goal.CreatedAt, goal.UpdatedAt)
+
+	return mcp.NewToolResultText(result), nil
+}
+
+func updateGoalTool() mcp.Tool {
+	return mcp.Tool{
+		Name:        "update_goal",
+		Description: "Update an existing goal",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"id": map[string]interface{}{
+					"type":        "number",
+					"description": "Goal ID",
+				},
+				"title": map[string]interface{}{
+					"type":        "string",
+					"description": "Goal title (optional)",
+				},
+				"description": map[string]interface{}{
+					"type":        "string",
+					"description": "Goal description (optional)",
+				},
+				"goal_type": map[string]interface{}{
+					"type":        "string",
+					"description": "Goal type: short_term, career, values, requirement (optional)",
+				},
+			},
+			Required: []string{"id"},
+		},
+	}
+}
+
+func updateGoalHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
+		return mcp.NewToolResultError("id is required and must be a number"), nil
+	}
+	id := int64(idFloat)
+
+	arguments := request.GetArguments()
+
+	var title *string
+	if t, ok := arguments["title"].(string); ok {
+		title = &t
+	}
+
+	var description *string
+	if desc, ok := arguments["description"].(string); ok {
+		description = &desc
+	}
+
+	var goalType *string
+	if t, ok := arguments["goal_type"].(string); ok {
+		if !isValidGoalType(t) {
+			return mcp.NewToolResultError("goal_type must be one of: short_term, career, values, requirement"), nil
+		}
+		goalType = &t
+	}
+
+	if title == nil && description == nil && goalType == nil {
+		return mcp.NewToolResultError("at least one field (title, description, or goal_type) must be provided for update"), nil
+	}
+
+	goal, err := db.UpdateGoal(id, title, description, goalType)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to update goal: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Goal updated successfully: ID=%d, Title=%s, Type=%s", goal.ID, goal.Title, goal.GoalType)), nil
+}
+
+func deleteGoalTool() mcp.Tool {
+	return mcp.Tool{
+		Name:        "delete_goal",
+		Description: "Delete a goal",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"id": map[string]interface{}{
+					"type":        "number",
+					"description": "Goal ID",
+				},
+			},
+			Required: []string{"id"},
+		},
+	}
+}
+
+func deleteGoalHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	idFloat, err := request.RequireFloat("id")
+	if err != nil {
+		return mcp.NewToolResultError("id is required and must be a number"), nil
+	}
+	id := int64(idFloat)
+
+	if err := db.DeleteGoal(id); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to delete goal: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Goal %d deleted successfully", id)), nil
 }
 
 // Task note management tools
