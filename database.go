@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -30,9 +31,40 @@ type Task struct {
 	Description  string    `json:"description"`
 	Status       string    `json:"status"`
 	Priority     string    `json:"priority"`
+	TaskType     string    `json:"task_type"`
 	ExternalLink string    `json:"external_link"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type Problem struct {
+	ID          int64     `json:"id"`
+	ProjectID   int64     `json:"project_id"`
+	TaskID      *int64    `json:"task_id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Outcome struct {
+	ID          int64     `json:"id"`
+	ProjectID   int64     `json:"project_id"`
+	TaskID      *int64    `json:"task_id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type TaskNote struct {
+	ID        int64     `json:"id"`
+	TaskID    int64     `json:"task_id"`
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // NewDatabase creates a new database connection
@@ -65,7 +97,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 
 // initSchema initializes the database schema
 func (d *Database) initSchema() error {
-	schema := `
+	tables := `
 	CREATE TABLE IF NOT EXISTS projects (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
@@ -82,17 +114,81 @@ func (d *Database) initSchema() error {
 		description TEXT,
 		status TEXT DEFAULT 'pending',
 		priority TEXT DEFAULT 'medium',
+		task_type TEXT DEFAULT 'general',
 		external_link TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
-	CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+	CREATE TABLE IF NOT EXISTS problems (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project_id INTEGER NOT NULL,
+		task_id INTEGER,
+		title TEXT NOT NULL,
+		description TEXT,
+		status TEXT DEFAULT 'open',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+		FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS outcomes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project_id INTEGER NOT NULL,
+		task_id INTEGER,
+		title TEXT NOT NULL,
+		description TEXT,
+		status TEXT DEFAULT 'open',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+		FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS task_notes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		task_id INTEGER NOT NULL,
+		note TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+	);
 	`
 
-	_, err := d.db.Exec(schema)
+	if _, err := d.db.Exec(tables); err != nil {
+		return err
+	}
+
+	if _, err := d.db.Exec("ALTER TABLE tasks ADD COLUMN task_type TEXT DEFAULT 'general'"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+	if _, err := d.db.Exec("UPDATE tasks SET task_type = 'general' WHERE task_type IS NULL OR task_type = ''"); err != nil {
+		return err
+	}
+	if _, err := d.db.Exec("ALTER TABLE problems ADD COLUMN task_id INTEGER"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+
+	indexes := `
+	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+	CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+	CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);
+	CREATE INDEX IF NOT EXISTS idx_problems_project_id ON problems(project_id);
+	CREATE INDEX IF NOT EXISTS idx_problems_task_id ON problems(task_id);
+	CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status);
+	CREATE INDEX IF NOT EXISTS idx_outcomes_project_id ON outcomes(project_id);
+	CREATE INDEX IF NOT EXISTS idx_outcomes_task_id ON outcomes(task_id);
+	CREATE INDEX IF NOT EXISTS idx_outcomes_status ON outcomes(status);
+	CREATE INDEX IF NOT EXISTS idx_task_notes_task_id ON task_notes(task_id);
+	`
+
+	_, err := d.db.Exec(indexes)
 	return err
 }
 
@@ -206,10 +302,13 @@ func (d *Database) DeleteProject(id int64) error {
 
 // Task operations
 
-func (d *Database) CreateTask(projectID int64, title, description, status, priority, externalLink string) (*Task, error) {
+func (d *Database) CreateTask(projectID int64, title, description, status, priority, taskType, externalLink string) (*Task, error) {
+	if taskType == "" {
+		taskType = "general"
+	}
 	result, err := d.db.Exec(
-		"INSERT INTO tasks (project_id, title, description, status, priority, external_link) VALUES (?, ?, ?, ?, ?, ?)",
-		projectID, title, description, status, priority, externalLink,
+		"INSERT INTO tasks (project_id, title, description, status, priority, task_type, external_link) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		projectID, title, description, status, priority, taskType, externalLink,
 	)
 	if err != nil {
 		return nil, err
@@ -226,17 +325,17 @@ func (d *Database) CreateTask(projectID int64, title, description, status, prior
 func (d *Database) GetTask(id int64) (*Task, error) {
 	var t Task
 	err := d.db.QueryRow(
-		"SELECT id, project_id, title, description, status, priority, external_link, created_at, updated_at FROM tasks WHERE id = ?",
+		"SELECT id, project_id, title, description, status, priority, task_type, external_link, created_at, updated_at FROM tasks WHERE id = ?",
 		id,
-	).Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.ExternalLink, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.TaskType, &t.ExternalLink, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &t, nil
 }
 
-func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) {
-	query := "SELECT id, project_id, title, description, status, priority, external_link, created_at, updated_at FROM tasks WHERE 1=1"
+func (d *Database) ListTasks(projectID *int64, status *string, taskType *string) ([]*Task, error) {
+	query := "SELECT id, project_id, title, description, status, priority, task_type, external_link, created_at, updated_at FROM tasks WHERE 1=1"
 	args := []interface{}{}
 
 	if projectID != nil {
@@ -247,6 +346,11 @@ func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) 
 	if status != nil {
 		query += " AND status = ?"
 		args = append(args, *status)
+	}
+
+	if taskType != nil {
+		query += " AND task_type = ?"
+		args = append(args, *taskType)
 	}
 
 	query += " ORDER BY updated_at DESC"
@@ -260,7 +364,7 @@ func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) 
 	var tasks []*Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.ExternalLink, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.TaskType, &t.ExternalLink, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, &t)
@@ -268,7 +372,7 @@ func (d *Database) ListTasks(projectID *int64, status *string) ([]*Task, error) 
 	return tasks, rows.Err()
 }
 
-func (d *Database) UpdateTask(id int64, title, description, status, priority, externalLink *string) (*Task, error) {
+func (d *Database) UpdateTask(id int64, title, description, status, priority, taskType, externalLink *string) (*Task, error) {
 	updates := []string{}
 	args := []interface{}{}
 
@@ -287,6 +391,10 @@ func (d *Database) UpdateTask(id int64, title, description, status, priority, ex
 	if priority != nil {
 		updates = append(updates, "priority = ?")
 		args = append(args, *priority)
+	}
+	if taskType != nil {
+		updates = append(updates, "task_type = ?")
+		args = append(args, *taskType)
 	}
 	if externalLink != nil {
 		updates = append(updates, "external_link = ?")
@@ -311,6 +419,339 @@ func (d *Database) UpdateTask(id int64, title, description, status, priority, ex
 		return nil, err
 	}
 	return d.GetTask(id)
+}
+
+// Problem operations
+
+func (d *Database) CreateProblem(projectID int64, taskID *int64, title, description, status string) (*Problem, error) {
+	result, err := d.db.Exec(
+		"INSERT INTO problems (project_id, task_id, title, description, status) VALUES (?, ?, ?, ?, ?)",
+		projectID, taskID, title, description, status,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return d.GetProblem(id)
+}
+
+func (d *Database) GetProblem(id int64) (*Problem, error) {
+	var p Problem
+	var taskID sql.NullInt64
+	err := d.db.QueryRow(
+		"SELECT id, project_id, task_id, title, description, status, created_at, updated_at FROM problems WHERE id = ?",
+		id,
+	).Scan(&p.ID, &p.ProjectID, &taskID, &p.Title, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if taskID.Valid {
+		p.TaskID = &taskID.Int64
+	}
+	return &p, nil
+}
+
+func (d *Database) ListProblems(projectID *int64, taskID *int64, status *string) ([]*Problem, error) {
+	query := "SELECT id, project_id, task_id, title, description, status, created_at, updated_at FROM problems WHERE 1=1"
+	args := []interface{}{}
+
+	if projectID != nil {
+		query += " AND project_id = ?"
+		args = append(args, *projectID)
+	}
+
+	if taskID != nil {
+		query += " AND task_id = ?"
+		args = append(args, *taskID)
+	}
+
+	if status != nil {
+		query += " AND status = ?"
+		args = append(args, *status)
+	}
+
+	query += " ORDER BY updated_at DESC"
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var problems []*Problem
+	for rows.Next() {
+		var p Problem
+		var taskID sql.NullInt64
+		if err := rows.Scan(&p.ID, &p.ProjectID, &taskID, &p.Title, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if taskID.Valid {
+			p.TaskID = &taskID.Int64
+		}
+		problems = append(problems, &p)
+	}
+	return problems, rows.Err()
+}
+
+func (d *Database) UpdateProblem(id int64, title, description, status *string) (*Problem, error) {
+	updates := []string{}
+	args := []interface{}{}
+
+	if title != nil {
+		updates = append(updates, "title = ?")
+		args = append(args, *title)
+	}
+	if description != nil {
+		updates = append(updates, "description = ?")
+		args = append(args, *description)
+	}
+	if status != nil {
+		updates = append(updates, "status = ?")
+		args = append(args, *status)
+	}
+
+	if len(updates) == 0 {
+		return d.GetProblem(id)
+	}
+
+	updates = append(updates, "updated_at = CURRENT_TIMESTAMP")
+	args = append(args, id)
+
+	query := "UPDATE problems SET " + updates[0]
+	for i := 1; i < len(updates); i++ {
+		query += ", " + updates[i]
+	}
+	query += " WHERE id = ?"
+
+	_, err := d.db.Exec(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return d.GetProblem(id)
+}
+
+func (d *Database) DeleteProblem(id int64) error {
+	result, err := d.db.Exec("DELETE FROM problems WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("problem with ID %d not found", id)
+	}
+	return nil
+}
+
+// Outcome operations
+
+func (d *Database) CreateOutcome(projectID int64, taskID *int64, title, description, status string) (*Outcome, error) {
+	result, err := d.db.Exec(
+		"INSERT INTO outcomes (project_id, task_id, title, description, status) VALUES (?, ?, ?, ?, ?)",
+		projectID, taskID, title, description, status,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return d.GetOutcome(id)
+}
+
+func (d *Database) GetOutcome(id int64) (*Outcome, error) {
+	var outcome Outcome
+	var taskID sql.NullInt64
+	err := d.db.QueryRow(
+		"SELECT id, project_id, task_id, title, description, status, created_at, updated_at FROM outcomes WHERE id = ?",
+		id,
+	).Scan(&outcome.ID, &outcome.ProjectID, &taskID, &outcome.Title, &outcome.Description, &outcome.Status, &outcome.CreatedAt, &outcome.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if taskID.Valid {
+		outcome.TaskID = &taskID.Int64
+	}
+	return &outcome, nil
+}
+
+func (d *Database) ListOutcomes(projectID *int64, taskID *int64, status *string) ([]*Outcome, error) {
+	query := "SELECT id, project_id, task_id, title, description, status, created_at, updated_at FROM outcomes WHERE 1=1"
+	args := []interface{}{}
+
+	if projectID != nil {
+		query += " AND project_id = ?"
+		args = append(args, *projectID)
+	}
+
+	if taskID != nil {
+		query += " AND task_id = ?"
+		args = append(args, *taskID)
+	}
+
+	if status != nil {
+		query += " AND status = ?"
+		args = append(args, *status)
+	}
+
+	query += " ORDER BY updated_at DESC"
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var outcomes []*Outcome
+	for rows.Next() {
+		var outcome Outcome
+		var taskID sql.NullInt64
+		if err := rows.Scan(&outcome.ID, &outcome.ProjectID, &taskID, &outcome.Title, &outcome.Description, &outcome.Status, &outcome.CreatedAt, &outcome.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if taskID.Valid {
+			outcome.TaskID = &taskID.Int64
+		}
+		outcomes = append(outcomes, &outcome)
+	}
+	return outcomes, rows.Err()
+}
+
+func (d *Database) UpdateOutcome(id int64, title, description, status *string) (*Outcome, error) {
+	updates := []string{}
+	args := []interface{}{}
+
+	if title != nil {
+		updates = append(updates, "title = ?")
+		args = append(args, *title)
+	}
+	if description != nil {
+		updates = append(updates, "description = ?")
+		args = append(args, *description)
+	}
+	if status != nil {
+		updates = append(updates, "status = ?")
+		args = append(args, *status)
+	}
+
+	if len(updates) == 0 {
+		return d.GetOutcome(id)
+	}
+
+	updates = append(updates, "updated_at = CURRENT_TIMESTAMP")
+	args = append(args, id)
+
+	query := "UPDATE outcomes SET " + updates[0]
+	for i := 1; i < len(updates); i++ {
+		query += ", " + updates[i]
+	}
+	query += " WHERE id = ?"
+
+	_, err := d.db.Exec(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return d.GetOutcome(id)
+}
+
+func (d *Database) DeleteOutcome(id int64) error {
+	result, err := d.db.Exec("DELETE FROM outcomes WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("outcome with ID %d not found", id)
+	}
+	return nil
+}
+
+// Task note operations
+
+func (d *Database) CreateTaskNote(taskID int64, note string) (*TaskNote, error) {
+	result, err := d.db.Exec(
+		"INSERT INTO task_notes (task_id, note) VALUES (?, ?)",
+		taskID, note,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return d.GetTaskNote(id)
+}
+
+func (d *Database) GetTaskNote(id int64) (*TaskNote, error) {
+	var note TaskNote
+	err := d.db.QueryRow(
+		"SELECT id, task_id, note, created_at, updated_at FROM task_notes WHERE id = ?",
+		id,
+	).Scan(&note.ID, &note.TaskID, &note.Note, &note.CreatedAt, &note.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &note, nil
+}
+
+func (d *Database) ListTaskNotes(taskID int64) ([]*TaskNote, error) {
+	rows, err := d.db.Query(
+		"SELECT id, task_id, note, created_at, updated_at FROM task_notes WHERE task_id = ? ORDER BY updated_at DESC",
+		taskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var notes []*TaskNote
+	for rows.Next() {
+		var note TaskNote
+		if err := rows.Scan(&note.ID, &note.TaskID, &note.Note, &note.CreatedAt, &note.UpdatedAt); err != nil {
+			return nil, err
+		}
+		notes = append(notes, &note)
+	}
+	return notes, rows.Err()
+}
+
+func (d *Database) UpdateTaskNote(id int64, note string) (*TaskNote, error) {
+	_, err := d.db.Exec("UPDATE task_notes SET note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", note, id)
+	if err != nil {
+		return nil, err
+	}
+	return d.GetTaskNote(id)
+}
+
+func (d *Database) DeleteTaskNote(id int64) error {
+	result, err := d.db.Exec("DELETE FROM task_notes WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("task note with ID %d not found", id)
+	}
+	return nil
 }
 
 func (d *Database) DeleteTask(id int64) error {
