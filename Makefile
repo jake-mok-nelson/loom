@@ -8,7 +8,6 @@ install: build
 
 clean:
 	rm -f loom
-	rm -rf $(HOME)/.loom/loom.db
 
 test:
 	go test ./...

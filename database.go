@@ -91,6 +91,14 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Limit to a single connection to prevent "database is locked" errors
+	// and ensure PRAGMA settings apply consistently. Without this,
+	// database/sql may open additional connections from the pool that
+	// would NOT have foreign keys enabled, silently breaking referential
+	// integrity and ON DELETE CASCADE.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	// Enable foreign key enforcement (required for ON DELETE CASCADE)
 	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		db.Close()
