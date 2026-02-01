@@ -1,0 +1,16 @@
+---
+description: Interactively plan a project by creating a project, tasks, and goals in Loom
+---
+
+Help the user plan a project from scratch or extend an existing one.
+
+1. Ask the user what they want to build or accomplish. If `$ARGUMENTS` is provided, use it as the starting description.
+2. Check `list_projects` to see if a matching project already exists. If so, ask whether to extend it or create a new one.
+3. Create the project with `create_project` (or use the existing one).
+4. Break the work down into concrete tasks. Suggest task titles, types, and priorities. Ask the user to confirm or adjust before creating them.
+5. For each confirmed task, call `create_task` with appropriate `task_type` and `priority`.
+6. Ask if there are any goals for this project (short-term milestones, requirements, career goals). Create them with `create_goal`.
+7. Ask if there are any known problems or risks. Create them with `create_problem`.
+8. Finish by showing a summary of what was created: the project, all tasks with their priorities, and any goals or problems.
+
+Be collaborative — suggest structure but let the user drive decisions. Don't create anything without confirmation.

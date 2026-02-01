@@ -333,6 +333,35 @@ go test ./...
 go build -o loom
 ```
 
+## Plugin Installation
+
+Loom is available as a **Claude Desktop Extension** and a **Claude Code Plugin**.
+
+### Claude Code Plugin
+
+This repository includes a `.claude-plugin` directory at the root. Point Claude Code at this repo to use Loom as a plugin:
+
+```bash
+claude plugin add /path/to/loom
+```
+
+The plugin uses `go run` to build and launch the server on the fly, so a working Go toolchain is the only prerequisite.
+
+To customise the database path, edit `.claude-plugin/.mcp.json` and add `LOOM_DB_PATH` to the `env` block.
+
+### Claude Desktop Extension
+
+Download a pre-built `.mcpb` file for your platform from the [Releases](https://github.com/jake-mok-nelson/loom/releases) page, or build from source:
+
+```bash
+# Requires the mcpb CLI
+make plugin-desktop
+```
+
+This cross-compiles for darwin/arm64, darwin/amd64, and linux/amd64 and produces `.mcpb` files in `dist/`. Open the `.mcpb` file with Claude Desktop to install.
+
+The extension provides an optional **Database Path** setting to choose a custom SQLite location (defaults to `~/.loom/loom.db`).
+
 ## License
 
 MIT

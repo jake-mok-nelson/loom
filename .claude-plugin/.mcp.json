@@ -1,0 +1,7 @@
+{
+  "loom": {
+    "command": "go",
+    "args": ["run", "${CLAUDE_PLUGIN_ROOT}"],
+    "env": {}
+  }
+}

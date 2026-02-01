@@ -38,3 +38,8 @@ loom
 *.db
 *.db-shm
 *.db-wal
+
+# Plugin build artifacts
+dist/
+desktop-extension/server/
+*.mcpb

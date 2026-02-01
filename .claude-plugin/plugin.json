@@ -1,0 +1,13 @@
+{
+  "name": "loom",
+  "displayName": "Loom",
+  "version": "1.0.0",
+  "description": "Project and task management MCP server backed by a local SQLite database. Manage projects, tasks, problems, goals, outcomes, and task notes.",
+  "author": {
+    "name": "Jake Nelson"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/jake-mok-nelson/loom",
+  "keywords": ["project-management", "task-management", "mcp", "sqlite"],
+  "mcpServers": "./.mcp.json"
+}
