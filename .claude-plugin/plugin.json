@@ -1,6 +1,5 @@
 {
   "name": "loom",
-  "displayName": "Loom",
   "version": "1.0.0",
   "description": "Project and task management MCP server backed by a local SQLite database. Manage projects, tasks, problems, goals, outcomes, and task notes.",
   "author": {
