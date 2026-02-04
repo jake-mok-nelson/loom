@@ -1,4 +1,4 @@
-.PHONY: build clean install test plugin-desktop plugin-clean
+.PHONY: build clean install test plugin-desktop plugin-clean web
 
 VERSION ?= 1.0.0
 
@@ -16,6 +16,10 @@ test:
 
 run: build
 	./loom
+
+# Run the web dashboard server
+web: build
+	./loom -web -addr :8080
 
 # --- Plugin targets ---
 
