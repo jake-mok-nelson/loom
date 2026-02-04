@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,11 @@ import (
 var db *Database
 
 func main() {
+	// Parse command-line flags
+	webMode := flag.Bool("web", false, "Start web server mode instead of MCP server")
+	webAddr := flag.String("addr", ":8080", "Web server address (default :8080)")
+	flag.Parse()
+
 	// Determine database path
 	dbPath := os.Getenv("LOOM_DB_PATH")
 	if dbPath == "" {
@@ -31,6 +37,16 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 	defer db.Close()
+
+	// If web mode is enabled, start the web server
+	if *webMode {
+		log.Printf("Loom web dashboard starting at http://%s with database at: %s", *webAddr, dbPath)
+		ws := NewWebServer(db, *webAddr)
+		if err := ws.Start(); err != nil {
+			log.Fatal("Failed to start web server:", err)
+		}
+		return
+	}
 
 	log.Printf("Loom MCP server starting with database at: %s", dbPath)
 

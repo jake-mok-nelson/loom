@@ -319,6 +319,41 @@ Or if you want to use a custom database location:
 4. Update task: `update_task(id=1, title="Setup database", status="completed")`
 5. View project details: `get_project(id=1)`
 
+## Web Dashboard
+
+Loom includes a reactive web dashboard for visualizing your projects and tasks. The dashboard provides real-time updates via Server-Sent Events (SSE) and a modern, desktop-optimized interface.
+
+### Starting the Web Server
+
+```bash
+# Using the binary directly
+./loom -web -addr :8080
+
+# Using make
+make web
+```
+
+Then open your browser to http://localhost:8080 to view the dashboard.
+
+### Dashboard Features
+
+- **Overview**: Shows recent activity across all data types
+- **Projects**: View and filter all projects with task status summaries
+- **Tasks**: Filter by status, priority, type, and project
+- **Problems**: Track issues linked to projects and tasks
+- **Outcomes**: Monitor progress tracking for projects
+- **Goals**: View short-term, career, values, and requirement goals
+- **Real-time Updates**: Dashboard automatically refreshes when data changes
+- **Search**: Global search across all items
+- **Dark Theme**: Modern, eye-friendly dark interface optimized for desktop use
+
+### Command-Line Options
+
+- `-web`: Enable web server mode (required)
+- `-addr`: Server address and port (default: `:8080`)
+
+You can also set the `LOOM_DB_PATH` environment variable to use a custom database location.
+
 ## Development
 
 ### Running Tests
