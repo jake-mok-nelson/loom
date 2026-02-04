@@ -1308,7 +1308,7 @@ const dashboardHTML = `<!DOCTYPE html>
             if (status) filtered = filtered.filter(t => t.status === status);
             if (priority) filtered = filtered.filter(t => t.priority === priority);
             if (type) filtered = filtered.filter(t => t.task_type === type);
-            if (projectId) filtered = filtered.filter(t => t.project_id == projectId);
+            if (projectId) filtered = filtered.filter(t => String(t.project_id) === projectId);
 
             filtered = filterBySearch(filtered, ['title', 'description']);
 

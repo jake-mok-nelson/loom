@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -201,7 +202,7 @@ func TestHandleTasksWithFilters(t *testing.T) {
 	}{
 		{"all tasks", "/api/tasks", 2},
 		{"filter by status", "/api/tasks?status=pending", 1},
-		{"filter by project", "/api/tasks?project_id=" + string(rune('0'+project.ID)), 2},
+		{"filter by project", "/api/tasks?project_id=" + strconv.FormatInt(project.ID, 10), 2},
 		{"filter by type", "/api/tasks?task_type=feature", 1},
 	}
 
