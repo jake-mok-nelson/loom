@@ -374,15 +374,47 @@ Loom is available as a **Claude Desktop Extension** and a **Claude Code Plugin**
 
 ### Claude Code Plugin
 
-This repository includes a `.claude-plugin` directory at the root. Point Claude Code at this repo to use Loom as a plugin:
+This repository includes a `.claude-plugin` directory at the root. 
+
+#### Installation
+
+**Option 1: Install from GitHub (Recommended)**
+
+Install the Loom binary using `go install` with version pinning:
+
+```bash
+go install github.com/jake-mok-nelson/loom@v1.0.0
+```
+
+Then add the plugin to Claude Code:
 
 ```bash
 claude plugin add /path/to/loom
 ```
 
-The plugin uses `go run` to build and launch the server on the fly, so a working Go toolchain is the only prerequisite.
+The plugin will use the installed binary from your `$GOPATH/bin` directory.
 
-To customise the database path, edit `.claude-plugin/.mcp.json` and add `LOOM_DB_PATH` to the `env` block.
+**Option 2: Quick Install Script**
+
+Run the provided installation script:
+
+```bash
+cd /path/to/loom/.claude-plugin
+./install.sh
+```
+
+**Option 3: Local Development**
+
+For local development, you can build from source:
+
+```bash
+cd /path/to/loom
+go build -o $GOPATH/bin/loom
+```
+
+#### Configuration
+
+To customise the database path, edit `.claude-plugin/.mcp.json` and add `LOOM_DB_PATH` to the `env` block:
 
 ### Claude Desktop Extension
 

@@ -8,5 +8,6 @@
   "license": "MIT",
   "repository": "https://github.com/jake-mok-nelson/loom",
   "keywords": ["project-management", "task-management", "mcp", "sqlite"],
+  "commands": "./commands/",
   "mcpServers": "./.mcp.json"
 }
