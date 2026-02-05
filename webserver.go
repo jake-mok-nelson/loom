@@ -1116,19 +1116,19 @@ const dashboardHTML = `<!DOCTYPE html>
                     <div class="graph-filter-group">
                         <span class="graph-filter-label">Show:</span>
                         <label class="filter-toggle active">
-                            <input type="checkbox" checked onchange="toggleEntityType('project')"> Projects
+                            <input type="checkbox" checked onchange="toggleEntityType(event, 'project')"> Projects
                         </label>
                         <label class="filter-toggle active">
-                            <input type="checkbox" checked onchange="toggleEntityType('task')"> Tasks
+                            <input type="checkbox" checked onchange="toggleEntityType(event, 'task')"> Tasks
                         </label>
                         <label class="filter-toggle active">
-                            <input type="checkbox" checked onchange="toggleEntityType('problem')"> Problems
+                            <input type="checkbox" checked onchange="toggleEntityType(event, 'problem')"> Problems
                         </label>
                         <label class="filter-toggle active">
-                            <input type="checkbox" checked onchange="toggleEntityType('outcome')"> Outcomes
+                            <input type="checkbox" checked onchange="toggleEntityType(event, 'outcome')"> Outcomes
                         </label>
                         <label class="filter-toggle active">
-                            <input type="checkbox" checked onchange="toggleEntityType('goal')"> Goals
+                            <input type="checkbox" checked onchange="toggleEntityType(event, 'goal')"> Goals
                         </label>
                     </div>
                 </div>
@@ -1774,6 +1774,13 @@ const dashboardHTML = `<!DOCTYPE html>
             outcome: 16,
             goal: 16
         };
+        
+        // Force simulation constants
+        const REPULSION_STRENGTH = 2000;      // Repulsion force between nodes
+        const IDEAL_EDGE_LENGTH = 100;        // Ideal distance between connected nodes
+        const SPRING_STRENGTH = 0.05;         // Spring attraction strength for edges
+        const MAX_LABEL_LENGTH = 20;          // Maximum characters before truncation
+        const TRUNCATE_LENGTH = 18;           // Length to truncate label to
 
         // Initialize graph
         function initGraph() {
@@ -1992,7 +1999,7 @@ const dashboardHTML = `<!DOCTYPE html>
                         const dx = nodeB.x - nodeA.x;
                         const dy = nodeB.y - nodeA.y;
                         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const force = 2000 / (dist * dist);
+                        const force = REPULSION_STRENGTH / (dist * dist);
                         const fx = (dx / dist) * force * alpha;
                         const fy = (dy / dist) * force * alpha;
                         nodeA.vx -= fx;
@@ -2010,7 +2017,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     const dx = target.x - source.x;
                     const dy = target.y - source.y;
                     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                    const force = (dist - 100) * 0.05 * alpha;
+                    const force = (dist - IDEAL_EDGE_LENGTH) * SPRING_STRENGTH * alpha;
                     const fx = (dx / dist) * force;
                     const fy = (dy / dist) * force;
                     source.vx += fx;
@@ -2207,7 +2214,7 @@ const dashboardHTML = `<!DOCTYPE html>
                 ctx.font = ` + "`" + `${Math.round(11 / graphScale)}px -apple-system, sans-serif` + "`" + `;
                 ctx.fillStyle = '#e7e9ea';
                 ctx.textAlign = 'center';
-                const label = node.label.length > 20 ? node.label.substring(0, 18) + '...' : node.label;
+                const label = node.label.length > MAX_LABEL_LENGTH ? node.label.substring(0, TRUNCATE_LENGTH) + '...' : node.label;
                 ctx.fillText(label, node.x, node.y + radius + 14 / graphScale);
             });
             
@@ -2353,7 +2360,7 @@ const dashboardHTML = `<!DOCTYPE html>
             graphScale = Math.max(0.2, graphScale / 1.2);
         }
         
-        function toggleEntityType(type) {
+        function toggleEntityType(event, type) {
             visibleTypes[type] = !visibleTypes[type];
             const toggle = event.target.closest('.filter-toggle');
             toggle.classList.toggle('active', visibleTypes[type]);
