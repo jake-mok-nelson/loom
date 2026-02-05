@@ -1,7 +1,7 @@
 {
   "loom": {
-    "command": "go",
-    "args": ["run", "${CLAUDE_PLUGIN_ROOT}"],
+    "command": "${GOBIN:-${GOPATH:-${HOME}/go}/bin}/loom",
+    "args": [],
     "env": {}
   }
 }
