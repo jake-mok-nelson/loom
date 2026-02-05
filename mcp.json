@@ -2,7 +2,7 @@
   "mcpServers": {
     "loom": {
       "command": "loom",
-      "args": [],
+      "args": ["--web"],
       "env": {}
     }
   }
