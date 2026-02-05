@@ -1000,6 +1000,204 @@ const dashboardHTML = `<!DOCTYPE html>
             margin: 0;
             cursor: pointer;
         }
+
+        /* Clickable Card Styles */
+        .card.clickable {
+            cursor: pointer;
+        }
+
+        .card.clickable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Related Items Modal */
+        .related-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .related-modal.active {
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .related-modal-content {
+            background: var(--bg-primary);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 900px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .related-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            background: var(--bg-primary);
+            z-index: 10;
+        }
+
+        .related-modal-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .related-modal-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .related-modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0 8px;
+            line-height: 1;
+        }
+
+        .related-modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .related-modal-body {
+            padding: 24px;
+        }
+
+        .related-section {
+            margin-bottom: 32px;
+        }
+
+        .related-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .related-section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .related-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .related-section-count {
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .related-items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .related-item {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .related-item:hover {
+            border-color: var(--accent-blue);
+            background: var(--bg-hover);
+        }
+
+        .related-item-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .related-item-icon {
+            font-size: 18px;
+        }
+
+        .related-item-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .related-item-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .related-item-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .related-empty {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .detail-field {
+            margin-bottom: 16px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .detail-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
     </style>
 </head>
 <body>
@@ -1260,7 +1458,25 @@ const dashboardHTML = `<!DOCTYPE html>
         </main>
     </div>
 
+    <!-- Related Items Modal -->
+    <div class="related-modal" id="related-modal">
+        <div class="related-modal-content">
+            <div class="related-modal-header">
+                <div>
+                    <div class="related-modal-title" id="modal-title"></div>
+                    <div class="related-modal-subtitle" id="modal-subtitle"></div>
+                </div>
+                <button class="related-modal-close" onclick="closeRelatedModal()">&times;</button>
+            </div>
+            <div class="related-modal-body" id="modal-body">
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Constants
+        const MODAL_TRANSITION_DELAY = 100; // Delay in ms for modal close/open transitions
+
         // Data storage
         let data = {
             projects: [],
@@ -1526,7 +1742,7 @@ const dashboardHTML = `<!DOCTYPE html>
             };
 
             return ` + "`" + `
-                <div class="card">
+                <div class="card clickable" onclick="showRelatedItems('project', ${project.id})">
                     <div class="card-header">
                         <div>
                             <div class="card-title">📁 ${escapeHtml(project.name)}</div>
@@ -1540,7 +1756,7 @@ const dashboardHTML = `<!DOCTYPE html>
                             <span class="badge status-in_progress">In Progress: ${tasksByStatus.in_progress}</span>
                             <span class="badge status-completed">Completed: ${tasksByStatus.completed}</span>
                         </div>
-                        ${project.external_link ? ` + "`" + `<a href="${escapeHtml(project.external_link)}" target="_blank" class="external-link">🔗 External Link</a>` + "`" + ` : ''}
+                        ${project.external_link ? ` + "`" + `<a href="${escapeHtml(project.external_link)}" target="_blank" class="external-link" onclick="event.stopPropagation()">🔗 External Link</a>` + "`" + ` : ''}
                     </div>
                     <div class="card-footer">
                         <span>Created: ${formatDate(project.created_at)}</span>
@@ -1577,7 +1793,7 @@ const dashboardHTML = `<!DOCTYPE html>
         function renderTaskCard(task) {
             const project = projectsMap[task.project_id];
             return ` + "`" + `
-                <div class="card">
+                <div class="card clickable" onclick="showRelatedItems('task', ${task.id})">
                     <div class="card-header">
                         <div>
                             <div class="card-title">✅ ${escapeHtml(task.title)}</div>
@@ -1591,7 +1807,7 @@ const dashboardHTML = `<!DOCTYPE html>
                             <span class="badge priority-${task.priority}">Priority: ${task.priority}</span>
                             <span class="badge type-${task.task_type}">${task.task_type}</span>
                         </div>
-                        ${task.external_link ? ` + "`" + `<a href="${escapeHtml(task.external_link)}" target="_blank" class="external-link">🔗 External Link</a>` + "`" + ` : ''}
+                        ${task.external_link ? ` + "`" + `<a href="${escapeHtml(task.external_link)}" target="_blank" class="external-link" onclick="event.stopPropagation()">🔗 External Link</a>` + "`" + ` : ''}
                     </div>
                     <div class="card-footer">
                         <span>Created: ${formatDate(task.created_at)}</span>
@@ -1620,7 +1836,7 @@ const dashboardHTML = `<!DOCTYPE html>
         function renderProblemCard(problem) {
             const project = problem.project_id ? projectsMap[problem.project_id] : null;
             return ` + "`" + `
-                <div class="card">
+                <div class="card clickable" onclick="showRelatedItems('problem', ${problem.id})">
                     <div class="card-header">
                         <div>
                             <div class="card-title">⚠️ ${escapeHtml(problem.title)}</div>
@@ -1660,7 +1876,7 @@ const dashboardHTML = `<!DOCTYPE html>
         function renderOutcomeCard(outcome) {
             const project = projectsMap[outcome.project_id];
             return ` + "`" + `
-                <div class="card">
+                <div class="card clickable" onclick="showRelatedItems('outcome', ${outcome.id})">
                     <div class="card-header">
                         <div>
                             <div class="card-title">🎯 ${escapeHtml(outcome.title)}</div>
@@ -1700,7 +1916,7 @@ const dashboardHTML = `<!DOCTYPE html>
         function renderGoalCard(goal) {
             const project = goal.project_id ? projectsMap[goal.project_id] : null;
             return ` + "`" + `
-                <div class="card">
+                <div class="card clickable" onclick="showRelatedItems('goal', ${goal.id})">
                     <div class="card-header">
                         <div>
                             <div class="card-title">🏆 ${escapeHtml(goal.title)}</div>
@@ -1738,6 +1954,349 @@ const dashboardHTML = `<!DOCTYPE html>
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ==================== RELATED ITEMS MODAL ====================
+
+        // Show related items modal when clicking on a card
+        function showRelatedItems(type, id) {
+            const modal = document.getElementById('related-modal');
+            const titleEl = document.getElementById('modal-title');
+            const subtitleEl = document.getElementById('modal-subtitle');
+            const bodyEl = document.getElementById('modal-body');
+
+            let item, title, subtitle, bodyHtml;
+            const icons = { project: '📁', task: '✅', problem: '⚠️', outcome: '🎯', goal: '🏆' };
+
+            switch(type) {
+                case 'project':
+                    item = data.projects.find(p => p.id === id);
+                    if (!item) return;
+                    title = icons.project + ' ' + escapeHtml(item.name);
+                    subtitle = 'Project Details & Related Items';
+                    bodyHtml = renderProjectRelatedItems(item);
+                    break;
+                case 'task':
+                    item = data.tasks.find(t => t.id === id);
+                    if (!item) return;
+                    title = icons.task + ' ' + escapeHtml(item.title);
+                    subtitle = 'Task Details & Related Items';
+                    bodyHtml = renderTaskRelatedItems(item);
+                    break;
+                case 'problem':
+                    item = data.problems.find(p => p.id === id);
+                    if (!item) return;
+                    title = icons.problem + ' ' + escapeHtml(item.title);
+                    subtitle = 'Problem Details & Related Items';
+                    bodyHtml = renderProblemRelatedItems(item);
+                    break;
+                case 'outcome':
+                    item = data.outcomes.find(o => o.id === id);
+                    if (!item) return;
+                    title = icons.outcome + ' ' + escapeHtml(item.title);
+                    subtitle = 'Outcome Details & Related Items';
+                    bodyHtml = renderOutcomeRelatedItems(item);
+                    break;
+                case 'goal':
+                    item = data.goals.find(g => g.id === id);
+                    if (!item) return;
+                    title = icons.goal + ' ' + escapeHtml(item.title);
+                    subtitle = 'Goal Details & Related Items';
+                    bodyHtml = renderGoalRelatedItems(item);
+                    break;
+                default:
+                    return;
+            }
+
+            titleEl.innerHTML = title;
+            subtitleEl.textContent = subtitle;
+            bodyEl.innerHTML = bodyHtml;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Close modal
+        function closeRelatedModal() {
+            const modal = document.getElementById('related-modal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeRelatedModal();
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('related-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'related-modal') closeRelatedModal();
+        });
+
+        // Render related items for a project
+        function renderProjectRelatedItems(project) {
+            const tasks = data.tasks.filter(t => t.project_id === project.id);
+            const problems = data.problems.filter(p => p.project_id === project.id);
+            const outcomes = data.outcomes.filter(o => o.project_id === project.id);
+            const goals = data.goals.filter(g => g.project_id === project.id);
+
+            let html = ` + "`" + `
+                <div class="detail-field">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${escapeHtml(project.description) || 'No description'}</div>
+                </div>
+                ${project.external_link ? ` + "`" + `
+                <div class="detail-field">
+                    <div class="detail-label">External Link</div>
+                    <div class="detail-value"><a href="${escapeHtml(project.external_link)}" target="_blank" style="color: var(--accent-blue);">🔗 ${escapeHtml(project.external_link)}</a></div>
+                </div>
+                ` + "`" + ` : ''}
+                <div class="detail-field">
+                    <div class="detail-label">Timestamps</div>
+                    <div class="detail-value">Created: ${formatDate(project.created_at)} • Updated: ${formatDate(project.updated_at)}</div>
+                </div>
+            ` + "`" + `;
+
+            html += renderRelatedSection('Tasks', '✅', tasks, renderRelatedTask);
+            html += renderRelatedSection('Problems', '⚠️', problems, renderRelatedProblem);
+            html += renderRelatedSection('Outcomes', '🎯', outcomes, renderRelatedOutcome);
+            html += renderRelatedSection('Goals', '🏆', goals, renderRelatedGoal);
+
+            return html;
+        }
+
+        // Render related items for a task
+        function renderTaskRelatedItems(task) {
+            const project = projectsMap[task.project_id];
+            const problems = data.problems.filter(p => p.task_id === task.id);
+            const outcomes = data.outcomes.filter(o => o.task_id === task.id);
+            const goals = data.goals.filter(g => g.task_id === task.id);
+
+            let html = ` + "`" + `
+                <div class="detail-badges">
+                    <span class="badge status-${task.status}">${task.status.replace('_', ' ')}</span>
+                    <span class="badge priority-${task.priority}">Priority: ${task.priority}</span>
+                    <span class="badge type-${task.task_type}">${task.task_type}</span>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${escapeHtml(task.description) || 'No description'}</div>
+                </div>
+                ${task.external_link ? ` + "`" + `
+                <div class="detail-field">
+                    <div class="detail-label">External Link</div>
+                    <div class="detail-value"><a href="${escapeHtml(task.external_link)}" target="_blank" style="color: var(--accent-blue);">🔗 ${escapeHtml(task.external_link)}</a></div>
+                </div>
+                ` + "`" + ` : ''}
+                <div class="detail-field">
+                    <div class="detail-label">Timestamps</div>
+                    <div class="detail-value">Created: ${formatDate(task.created_at)} • Updated: ${formatDate(task.updated_at)}</div>
+                </div>
+            ` + "`" + `;
+
+            if (project) {
+                html += renderRelatedSection('Parent Project', '📁', [project], renderRelatedProject);
+            }
+            html += renderRelatedSection('Problems', '⚠️', problems, renderRelatedProblem);
+            html += renderRelatedSection('Outcomes', '🎯', outcomes, renderRelatedOutcome);
+            html += renderRelatedSection('Goals', '🏆', goals, renderRelatedGoal);
+
+            return html;
+        }
+
+        // Render related items for a problem
+        function renderProblemRelatedItems(problem) {
+            const project = problem.project_id ? projectsMap[problem.project_id] : null;
+            const task = problem.task_id ? data.tasks.find(t => t.id === problem.task_id) : null;
+
+            let html = ` + "`" + `
+                <div class="detail-badges">
+                    <span class="badge status-${problem.status}">${problem.status.replace('_', ' ')}</span>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${escapeHtml(problem.description) || 'No description'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Timestamps</div>
+                    <div class="detail-value">Created: ${formatDate(problem.created_at)} • Updated: ${formatDate(problem.updated_at)}</div>
+                </div>
+            ` + "`" + `;
+
+            if (project) {
+                html += renderRelatedSection('Linked Project', '📁', [project], renderRelatedProject);
+            }
+            if (task) {
+                html += renderRelatedSection('Linked Task', '✅', [task], renderRelatedTask);
+            }
+
+            return html;
+        }
+
+        // Render related items for an outcome
+        function renderOutcomeRelatedItems(outcome) {
+            const project = projectsMap[outcome.project_id];
+            const task = outcome.task_id ? data.tasks.find(t => t.id === outcome.task_id) : null;
+
+            let html = ` + "`" + `
+                <div class="detail-badges">
+                    <span class="badge status-${outcome.status}">${outcome.status.replace('_', ' ')}</span>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${escapeHtml(outcome.description) || 'No description'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Timestamps</div>
+                    <div class="detail-value">Created: ${formatDate(outcome.created_at)} • Updated: ${formatDate(outcome.updated_at)}</div>
+                </div>
+            ` + "`" + `;
+
+            if (project) {
+                html += renderRelatedSection('Linked Project', '📁', [project], renderRelatedProject);
+            }
+            if (task) {
+                html += renderRelatedSection('Linked Task', '✅', [task], renderRelatedTask);
+            }
+
+            return html;
+        }
+
+        // Render related items for a goal
+        function renderGoalRelatedItems(goal) {
+            const project = goal.project_id ? projectsMap[goal.project_id] : null;
+            const task = goal.task_id ? data.tasks.find(t => t.id === goal.task_id) : null;
+
+            let html = ` + "`" + `
+                <div class="detail-badges">
+                    <span class="badge goal-${goal.goal_type}">${goal.goal_type.replace('_', ' ')}</span>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${escapeHtml(goal.description) || 'No description'}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="detail-label">Timestamps</div>
+                    <div class="detail-value">Created: ${formatDate(goal.created_at)} • Updated: ${formatDate(goal.updated_at)}</div>
+                </div>
+            ` + "`" + `;
+
+            if (project) {
+                html += renderRelatedSection('Linked Project', '📁', [project], renderRelatedProject);
+            }
+            if (task) {
+                html += renderRelatedSection('Linked Task', '✅', [task], renderRelatedTask);
+            }
+
+            return html;
+        }
+
+        // Helper function to render a related section
+        function renderRelatedSection(title, icon, items, renderFn) {
+            if (!items || items.length === 0) {
+                return ` + "`" + `
+                    <div class="related-section">
+                        <div class="related-section-header">
+                            <span class="related-section-title">${icon} ${title}</span>
+                            <span class="related-section-count">0</span>
+                        </div>
+                        <div class="related-empty">No ${title.toLowerCase()} linked</div>
+                    </div>
+                ` + "`" + `;
+            }
+
+            return ` + "`" + `
+                <div class="related-section">
+                    <div class="related-section-header">
+                        <span class="related-section-title">${icon} ${title}</span>
+                        <span class="related-section-count">${items.length}</span>
+                    </div>
+                    <div class="related-items-grid">
+                        ${items.map(renderFn).join('')}
+                    </div>
+                </div>
+            ` + "`" + `;
+        }
+
+        // Render a related project item
+        function renderRelatedProject(project) {
+            const taskCount = data.tasks.filter(t => t.project_id === project.id).length;
+            return ` + "`" + `
+                <div class="related-item" onclick="event.stopPropagation(); closeRelatedModal(); setTimeout(() => showRelatedItems('project', ${project.id}), MODAL_TRANSITION_DELAY);">
+                    <div class="related-item-header">
+                        <span class="related-item-icon">📁</span>
+                        <span class="related-item-title">${escapeHtml(project.name)}</span>
+                    </div>
+                    <div class="related-item-desc">${escapeHtml(project.description) || 'No description'}</div>
+                    <div class="related-item-meta">
+                        <span class="badge" style="background: rgba(29, 155, 240, 0.2); color: var(--accent-blue);">${taskCount} tasks</span>
+                    </div>
+                </div>
+            ` + "`" + `;
+        }
+
+        // Render a related task item
+        function renderRelatedTask(task) {
+            return ` + "`" + `
+                <div class="related-item" onclick="event.stopPropagation(); closeRelatedModal(); setTimeout(() => showRelatedItems('task', ${task.id}), MODAL_TRANSITION_DELAY);">
+                    <div class="related-item-header">
+                        <span class="related-item-icon">✅</span>
+                        <span class="related-item-title">${escapeHtml(task.title)}</span>
+                    </div>
+                    <div class="related-item-desc">${escapeHtml(task.description) || 'No description'}</div>
+                    <div class="related-item-meta">
+                        <span class="badge status-${task.status}">${task.status.replace('_', ' ')}</span>
+                        <span class="badge priority-${task.priority}">${task.priority}</span>
+                    </div>
+                </div>
+            ` + "`" + `;
+        }
+
+        // Render a related problem item
+        function renderRelatedProblem(problem) {
+            return ` + "`" + `
+                <div class="related-item" onclick="event.stopPropagation(); closeRelatedModal(); setTimeout(() => showRelatedItems('problem', ${problem.id}), MODAL_TRANSITION_DELAY);">
+                    <div class="related-item-header">
+                        <span class="related-item-icon">⚠️</span>
+                        <span class="related-item-title">${escapeHtml(problem.title)}</span>
+                    </div>
+                    <div class="related-item-desc">${escapeHtml(problem.description) || 'No description'}</div>
+                    <div class="related-item-meta">
+                        <span class="badge status-${problem.status}">${problem.status.replace('_', ' ')}</span>
+                    </div>
+                </div>
+            ` + "`" + `;
+        }
+
+        // Render a related outcome item
+        function renderRelatedOutcome(outcome) {
+            return ` + "`" + `
+                <div class="related-item" onclick="event.stopPropagation(); closeRelatedModal(); setTimeout(() => showRelatedItems('outcome', ${outcome.id}), MODAL_TRANSITION_DELAY);">
+                    <div class="related-item-header">
+                        <span class="related-item-icon">🎯</span>
+                        <span class="related-item-title">${escapeHtml(outcome.title)}</span>
+                    </div>
+                    <div class="related-item-desc">${escapeHtml(outcome.description) || 'No description'}</div>
+                    <div class="related-item-meta">
+                        <span class="badge status-${outcome.status}">${outcome.status.replace('_', ' ')}</span>
+                    </div>
+                </div>
+            ` + "`" + `;
+        }
+
+        // Render a related goal item
+        function renderRelatedGoal(goal) {
+            return ` + "`" + `
+                <div class="related-item" onclick="event.stopPropagation(); closeRelatedModal(); setTimeout(() => showRelatedItems('goal', ${goal.id}), MODAL_TRANSITION_DELAY);">
+                    <div class="related-item-header">
+                        <span class="related-item-icon">🏆</span>
+                        <span class="related-item-title">${escapeHtml(goal.title)}</span>
+                    </div>
+                    <div class="related-item-desc">${escapeHtml(goal.description) || 'No description'}</div>
+                    <div class="related-item-meta">
+                        <span class="badge goal-${goal.goal_type}">${goal.goal_type.replace('_', ' ')}</span>
+                    </div>
+                </div>
+            ` + "`" + `;
         }
 
         // ==================== GRAPH VIEW ====================
