@@ -321,6 +321,11 @@ const dashboardHTML = `<!DOCTYPE html>
             --accent-purple: #9b59b6;
             --border-color: #2f3336;
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            --node-project: #1d9bf0;
+            --node-task: #00ba7c;
+            --node-problem: #f4212e;
+            --node-outcome: #ffd93d;
+            --node-goal: #9b59b6;
         }
 
         * {
@@ -821,6 +826,180 @@ const dashboardHTML = `<!DOCTYPE html>
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Graph View Styles */
+        .graph-container {
+            width: 100%;
+            height: calc(100vh - 250px);
+            min-height: 500px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #graph-canvas {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        #graph-canvas:active {
+            cursor: grabbing;
+        }
+
+        .graph-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .layout-select {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            min-width: 180px;
+        }
+
+        .layout-select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .graph-btn {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .graph-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-blue);
+        }
+
+        .graph-btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        .graph-legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-dot.project { background: var(--node-project); }
+        .legend-dot.task { background: var(--node-task); }
+        .legend-dot.problem { background: var(--node-problem); }
+        .legend-dot.outcome { background: var(--node-outcome); }
+        .legend-dot.goal { background: var(--node-goal); }
+
+        .node-tooltip {
+            position: absolute;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+            box-shadow: var(--shadow);
+            display: none;
+        }
+
+        .node-tooltip.visible {
+            display: block;
+        }
+
+        .tooltip-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--text-primary);
+        }
+
+        .tooltip-type {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .tooltip-type.project { color: var(--node-project); }
+        .tooltip-type.task { color: var(--node-task); }
+        .tooltip-type.problem { color: var(--node-problem); }
+        .tooltip-type.outcome { color: var(--node-outcome); }
+        .tooltip-type.goal { color: var(--node-goal); }
+
+        .tooltip-desc {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .graph-filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .graph-filter-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-toggle.active {
+            background: var(--bg-hover);
+            border-color: var(--accent-blue);
+        }
+
+        .filter-toggle input {
+            margin: 0;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -837,6 +1016,10 @@ const dashboardHTML = `<!DOCTYPE html>
                 <div class="nav-item active" data-section="overview" onclick="switchSection('overview')">
                     <span>📊</span>
                     <span>Overview</span>
+                </div>
+                <div class="nav-item" data-section="graph" onclick="switchSection('graph')">
+                    <span>🔗</span>
+                    <span>Graph View</span>
                 </div>
             </nav>
 
@@ -913,6 +1096,72 @@ const dashboardHTML = `<!DOCTYPE html>
                     <h2 class="section-title">Recent Activity</h2>
                 </div>
                 <div class="cards-grid" id="recent-activity"></div>
+            </section>
+
+            <!-- Graph View Section -->
+            <section class="content-section" id="section-graph">
+                <div class="section-header">
+                    <h2 class="section-title">Entity Relationships</h2>
+                </div>
+                <div class="graph-controls">
+                    <select class="layout-select" id="graph-layout" onchange="changeLayout()">
+                        <option value="force">Force-Directed Layout</option>
+                        <option value="hierarchical">Hierarchical Layout</option>
+                        <option value="radial">Radial Layout</option>
+                        <option value="grid">Grid Layout</option>
+                    </select>
+                    <button class="graph-btn" onclick="resetGraphView()">⟳ Reset View</button>
+                    <button class="graph-btn" onclick="zoomIn()">+ Zoom In</button>
+                    <button class="graph-btn" onclick="zoomOut()">- Zoom Out</button>
+                    <div class="graph-filter-group">
+                        <span class="graph-filter-label">Show:</span>
+                        <label class="filter-toggle active">
+                            <input type="checkbox" checked onchange="toggleEntityType('project')"> Projects
+                        </label>
+                        <label class="filter-toggle active">
+                            <input type="checkbox" checked onchange="toggleEntityType('task')"> Tasks
+                        </label>
+                        <label class="filter-toggle active">
+                            <input type="checkbox" checked onchange="toggleEntityType('problem')"> Problems
+                        </label>
+                        <label class="filter-toggle active">
+                            <input type="checkbox" checked onchange="toggleEntityType('outcome')"> Outcomes
+                        </label>
+                        <label class="filter-toggle active">
+                            <input type="checkbox" checked onchange="toggleEntityType('goal')"> Goals
+                        </label>
+                    </div>
+                </div>
+                <div class="graph-container">
+                    <canvas id="graph-canvas"></canvas>
+                    <div class="node-tooltip" id="node-tooltip">
+                        <div class="tooltip-type" id="tooltip-type"></div>
+                        <div class="tooltip-title" id="tooltip-title"></div>
+                        <div class="tooltip-desc" id="tooltip-desc"></div>
+                    </div>
+                </div>
+                <div class="graph-legend">
+                    <div class="legend-item">
+                        <span class="legend-dot project"></span>
+                        <span>Project</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot task"></span>
+                        <span>Task</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot problem"></span>
+                        <span>Problem</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot outcome"></span>
+                        <span>Outcome</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot goal"></span>
+                        <span>Goal</span>
+                    </div>
+                </div>
             </section>
 
             <!-- Projects Section -->
@@ -1146,6 +1395,7 @@ const dashboardHTML = `<!DOCTYPE html>
             // Update title
             const titles = {
                 'overview': 'Overview',
+                'graph': 'Graph View',
                 'projects': 'Projects',
                 'tasks': 'Tasks',
                 'problems': 'Problems',
@@ -1166,6 +1416,9 @@ const dashboardHTML = `<!DOCTYPE html>
             switch(sectionId) {
                 case 'overview':
                     renderOverview();
+                    break;
+                case 'graph':
+                    initGraph();
                     break;
                 case 'projects':
                     renderProjects();
@@ -1485,6 +1738,625 @@ const dashboardHTML = `<!DOCTYPE html>
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ==================== GRAPH VIEW ====================
+        
+        // Graph state
+        let graphCanvas = null;
+        let graphCtx = null;
+        let graphNodes = [];
+        let graphEdges = [];
+        let graphScale = 1;
+        let graphOffset = { x: 0, y: 0 };
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let selectedNode = null;
+        let hoveredNode = null;
+        let animationId = null;
+        let currentLayout = 'force';
+        let visibleTypes = { project: true, task: true, problem: true, outcome: true, goal: true };
+        
+        // Node colors
+        const nodeColors = {
+            project: '#1d9bf0',
+            task: '#00ba7c',
+            problem: '#f4212e',
+            outcome: '#ffd93d',
+            goal: '#9b59b6'
+        };
+        
+        // Node sizes
+        const nodeSizes = {
+            project: 24,
+            task: 18,
+            problem: 16,
+            outcome: 16,
+            goal: 16
+        };
+
+        // Initialize graph
+        function initGraph() {
+            graphCanvas = document.getElementById('graph-canvas');
+            if (!graphCanvas) return;
+            
+            graphCtx = graphCanvas.getContext('2d');
+            
+            // Set canvas size
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Build graph data
+            buildGraphData();
+            
+            // Apply initial layout
+            applyLayout(currentLayout);
+            
+            // Add event listeners
+            graphCanvas.addEventListener('mousedown', handleMouseDown);
+            graphCanvas.addEventListener('mousemove', handleMouseMove);
+            graphCanvas.addEventListener('mouseup', handleMouseUp);
+            graphCanvas.addEventListener('mouseleave', handleMouseLeave);
+            graphCanvas.addEventListener('wheel', handleWheel);
+            graphCanvas.addEventListener('dblclick', handleDoubleClick);
+            
+            // Start render loop
+            if (animationId) cancelAnimationFrame(animationId);
+            renderGraph();
+        }
+        
+        function resizeCanvas() {
+            if (!graphCanvas) return;
+            const container = graphCanvas.parentElement;
+            graphCanvas.width = container.clientWidth;
+            graphCanvas.height = container.clientHeight;
+        }
+        
+        function buildGraphData() {
+            graphNodes = [];
+            graphEdges = [];
+            
+            // Create nodes for each entity type
+            data.projects.forEach(p => {
+                graphNodes.push({
+                    id: 'project-' + p.id,
+                    type: 'project',
+                    entityId: p.id,
+                    label: p.name,
+                    description: p.description || '',
+                    x: 0,
+                    y: 0,
+                    vx: 0,
+                    vy: 0
+                });
+            });
+            
+            data.tasks.forEach(t => {
+                graphNodes.push({
+                    id: 'task-' + t.id,
+                    type: 'task',
+                    entityId: t.id,
+                    label: t.title,
+                    description: t.description || '',
+                    projectId: t.project_id,
+                    x: 0,
+                    y: 0,
+                    vx: 0,
+                    vy: 0
+                });
+                // Link to project
+                graphEdges.push({
+                    source: 'project-' + t.project_id,
+                    target: 'task-' + t.id
+                });
+            });
+            
+            data.problems.forEach(p => {
+                graphNodes.push({
+                    id: 'problem-' + p.id,
+                    type: 'problem',
+                    entityId: p.id,
+                    label: p.title,
+                    description: p.description || '',
+                    projectId: p.project_id,
+                    taskId: p.task_id,
+                    x: 0,
+                    y: 0,
+                    vx: 0,
+                    vy: 0
+                });
+                // Link to project or task
+                if (p.task_id) {
+                    graphEdges.push({
+                        source: 'task-' + p.task_id,
+                        target: 'problem-' + p.id
+                    });
+                } else if (p.project_id) {
+                    graphEdges.push({
+                        source: 'project-' + p.project_id,
+                        target: 'problem-' + p.id
+                    });
+                }
+            });
+            
+            data.outcomes.forEach(o => {
+                graphNodes.push({
+                    id: 'outcome-' + o.id,
+                    type: 'outcome',
+                    entityId: o.id,
+                    label: o.title,
+                    description: o.description || '',
+                    projectId: o.project_id,
+                    taskId: o.task_id,
+                    x: 0,
+                    y: 0,
+                    vx: 0,
+                    vy: 0
+                });
+                // Link to project or task
+                if (o.task_id) {
+                    graphEdges.push({
+                        source: 'task-' + o.task_id,
+                        target: 'outcome-' + o.id
+                    });
+                } else if (o.project_id) {
+                    graphEdges.push({
+                        source: 'project-' + o.project_id,
+                        target: 'outcome-' + o.id
+                    });
+                }
+            });
+            
+            data.goals.forEach(g => {
+                graphNodes.push({
+                    id: 'goal-' + g.id,
+                    type: 'goal',
+                    entityId: g.id,
+                    label: g.title,
+                    description: g.description || '',
+                    projectId: g.project_id,
+                    taskId: g.task_id,
+                    x: 0,
+                    y: 0,
+                    vx: 0,
+                    vy: 0
+                });
+                // Link to project or task
+                if (g.task_id) {
+                    graphEdges.push({
+                        source: 'task-' + g.task_id,
+                        target: 'goal-' + g.id
+                    });
+                } else if (g.project_id) {
+                    graphEdges.push({
+                        source: 'project-' + g.project_id,
+                        target: 'goal-' + g.id
+                    });
+                }
+            });
+        }
+        
+        function applyLayout(layout) {
+            currentLayout = layout;
+            const width = graphCanvas ? graphCanvas.width : 800;
+            const height = graphCanvas ? graphCanvas.height : 600;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            
+            switch(layout) {
+                case 'force':
+                    applyForceLayout();
+                    break;
+                case 'hierarchical':
+                    applyHierarchicalLayout(centerX, centerY, width, height);
+                    break;
+                case 'radial':
+                    applyRadialLayout(centerX, centerY);
+                    break;
+                case 'grid':
+                    applyGridLayout(centerX, centerY, width, height);
+                    break;
+            }
+        }
+        
+        function applyForceLayout() {
+            const width = graphCanvas ? graphCanvas.width : 800;
+            const height = graphCanvas ? graphCanvas.height : 600;
+            
+            // Initialize with random positions
+            graphNodes.forEach(node => {
+                node.x = Math.random() * (width - 100) + 50;
+                node.y = Math.random() * (height - 100) + 50;
+                node.vx = 0;
+                node.vy = 0;
+            });
+            
+            // Run force simulation
+            simulateForces(100);
+        }
+        
+        function simulateForces(iterations) {
+            const width = graphCanvas ? graphCanvas.width : 800;
+            const height = graphCanvas ? graphCanvas.height : 600;
+            const nodeMap = {};
+            graphNodes.forEach(n => nodeMap[n.id] = n);
+            
+            for (let i = 0; i < iterations; i++) {
+                const alpha = 1 - i / iterations;
+                
+                // Repulsion between all nodes
+                for (let j = 0; j < graphNodes.length; j++) {
+                    for (let k = j + 1; k < graphNodes.length; k++) {
+                        const nodeA = graphNodes[j];
+                        const nodeB = graphNodes[k];
+                        const dx = nodeB.x - nodeA.x;
+                        const dy = nodeB.y - nodeA.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const force = 2000 / (dist * dist);
+                        const fx = (dx / dist) * force * alpha;
+                        const fy = (dy / dist) * force * alpha;
+                        nodeA.vx -= fx;
+                        nodeA.vy -= fy;
+                        nodeB.vx += fx;
+                        nodeB.vy += fy;
+                    }
+                }
+                
+                // Attraction along edges
+                graphEdges.forEach(edge => {
+                    const source = nodeMap[edge.source];
+                    const target = nodeMap[edge.target];
+                    if (!source || !target) return;
+                    const dx = target.x - source.x;
+                    const dy = target.y - source.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const force = (dist - 100) * 0.05 * alpha;
+                    const fx = (dx / dist) * force;
+                    const fy = (dy / dist) * force;
+                    source.vx += fx;
+                    source.vy += fy;
+                    target.vx -= fx;
+                    target.vy -= fy;
+                });
+                
+                // Center gravity
+                graphNodes.forEach(node => {
+                    node.vx += (width / 2 - node.x) * 0.001 * alpha;
+                    node.vy += (height / 2 - node.y) * 0.001 * alpha;
+                });
+                
+                // Apply velocities with damping
+                graphNodes.forEach(node => {
+                    node.x += node.vx * 0.8;
+                    node.y += node.vy * 0.8;
+                    node.vx *= 0.9;
+                    node.vy *= 0.9;
+                    // Keep in bounds
+                    node.x = Math.max(50, Math.min(width - 50, node.x));
+                    node.y = Math.max(50, Math.min(height - 50, node.y));
+                });
+            }
+        }
+        
+        function applyHierarchicalLayout(centerX, centerY, width, height) {
+            // Group by type hierarchy: projects -> tasks -> (problems, outcomes, goals)
+            const levels = {
+                project: [],
+                task: [],
+                other: [] // problems, outcomes, goals
+            };
+            
+            graphNodes.forEach(node => {
+                if (node.type === 'project') levels.project.push(node);
+                else if (node.type === 'task') levels.task.push(node);
+                else levels.other.push(node);
+            });
+            
+            const padding = 80;
+            const levelHeight = (height - 2 * padding) / 3;
+            
+            // Position projects at top
+            levels.project.forEach((node, i) => {
+                const spacing = (width - 2 * padding) / (levels.project.length + 1);
+                node.x = padding + spacing * (i + 1);
+                node.y = padding;
+            });
+            
+            // Position tasks in middle
+            levels.task.forEach((node, i) => {
+                const spacing = (width - 2 * padding) / (levels.task.length + 1);
+                node.x = padding + spacing * (i + 1);
+                node.y = padding + levelHeight;
+            });
+            
+            // Position others at bottom
+            levels.other.forEach((node, i) => {
+                const spacing = (width - 2 * padding) / (levels.other.length + 1);
+                node.x = padding + spacing * (i + 1);
+                node.y = padding + levelHeight * 2;
+            });
+        }
+        
+        function applyRadialLayout(centerX, centerY) {
+            // Projects in center ring, tasks in next ring, others in outer ring
+            const rings = {
+                project: { nodes: [], radius: 80 },
+                task: { nodes: [], radius: 180 },
+                other: { nodes: [], radius: 280 }
+            };
+            
+            graphNodes.forEach(node => {
+                if (node.type === 'project') rings.project.nodes.push(node);
+                else if (node.type === 'task') rings.task.nodes.push(node);
+                else rings.other.nodes.push(node);
+            });
+            
+            Object.values(rings).forEach(ring => {
+                ring.nodes.forEach((node, i) => {
+                    const angle = (2 * Math.PI * i) / ring.nodes.length - Math.PI / 2;
+                    node.x = centerX + ring.radius * Math.cos(angle);
+                    node.y = centerY + ring.radius * Math.sin(angle);
+                });
+            });
+        }
+        
+        function applyGridLayout(centerX, centerY, width, height) {
+            const padding = 60;
+            const cols = Math.ceil(Math.sqrt(graphNodes.length));
+            const cellWidth = (width - 2 * padding) / cols;
+            const cellHeight = (height - 2 * padding) / Math.ceil(graphNodes.length / cols);
+            
+            graphNodes.forEach((node, i) => {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                node.x = padding + cellWidth * (col + 0.5);
+                node.y = padding + cellHeight * (row + 0.5);
+            });
+        }
+        
+        function renderGraph() {
+            if (!graphCtx || !graphCanvas) return;
+            
+            const ctx = graphCtx;
+            const width = graphCanvas.width;
+            const height = graphCanvas.height;
+            
+            // Clear canvas
+            ctx.fillStyle = '#242b3d';
+            ctx.fillRect(0, 0, width, height);
+            
+            ctx.save();
+            ctx.translate(graphOffset.x, graphOffset.y);
+            ctx.scale(graphScale, graphScale);
+            
+            // Get visible nodes
+            const visibleNodes = graphNodes.filter(n => visibleTypes[n.type]);
+            const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+            
+            // Draw edges
+            ctx.lineWidth = 1.5 / graphScale;
+            graphEdges.forEach(edge => {
+                if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) return;
+                const source = graphNodes.find(n => n.id === edge.source);
+                const target = graphNodes.find(n => n.id === edge.target);
+                if (!source || !target) return;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(139, 153, 166, 0.4)';
+                ctx.moveTo(source.x, source.y);
+                ctx.lineTo(target.x, target.y);
+                ctx.stroke();
+                
+                // Draw arrow
+                const angle = Math.atan2(target.y - source.y, target.x - source.x);
+                const targetRadius = nodeSizes[target.type] + 5;
+                const arrowX = target.x - Math.cos(angle) * targetRadius;
+                const arrowY = target.y - Math.sin(angle) * targetRadius;
+                const arrowSize = 8 / graphScale;
+                
+                ctx.beginPath();
+                ctx.fillStyle = 'rgba(139, 153, 166, 0.6)';
+                ctx.moveTo(arrowX, arrowY);
+                ctx.lineTo(
+                    arrowX - arrowSize * Math.cos(angle - Math.PI / 6),
+                    arrowY - arrowSize * Math.sin(angle - Math.PI / 6)
+                );
+                ctx.lineTo(
+                    arrowX - arrowSize * Math.cos(angle + Math.PI / 6),
+                    arrowY - arrowSize * Math.sin(angle + Math.PI / 6)
+                );
+                ctx.closePath();
+                ctx.fill();
+            });
+            
+            // Draw nodes
+            visibleNodes.forEach(node => {
+                const radius = nodeSizes[node.type];
+                const isHovered = hoveredNode === node;
+                const isSelected = selectedNode === node;
+                
+                // Node shadow
+                if (isHovered || isSelected) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, radius + 4, 0, Math.PI * 2);
+                    ctx.fillStyle = nodeColors[node.type] + '40';
+                    ctx.fill();
+                }
+                
+                // Node circle
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = nodeColors[node.type];
+                ctx.fill();
+                
+                if (isSelected) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 3 / graphScale;
+                    ctx.stroke();
+                }
+                
+                // Node icon
+                ctx.fillStyle = '#fff';
+                ctx.font = ` + "`" + `${Math.round(radius * 0.8)}px Arial` + "`" + `;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const icons = { project: '📁', task: '✅', problem: '⚠', outcome: '🎯', goal: '🏆' };
+                ctx.fillText(icons[node.type], node.x, node.y);
+                
+                // Node label
+                ctx.font = ` + "`" + `${Math.round(11 / graphScale)}px -apple-system, sans-serif` + "`" + `;
+                ctx.fillStyle = '#e7e9ea';
+                ctx.textAlign = 'center';
+                const label = node.label.length > 20 ? node.label.substring(0, 18) + '...' : node.label;
+                ctx.fillText(label, node.x, node.y + radius + 14 / graphScale);
+            });
+            
+            ctx.restore();
+            
+            animationId = requestAnimationFrame(renderGraph);
+        }
+        
+        function handleMouseDown(e) {
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - graphOffset.x) / graphScale;
+            const y = (e.clientY - rect.top - graphOffset.y) / graphScale;
+            
+            // Check if clicking on a node
+            const node = findNodeAt(x, y);
+            if (node) {
+                selectedNode = node;
+                isDragging = true;
+                dragStart = { x: e.clientX - node.x * graphScale - graphOffset.x, y: e.clientY - node.y * graphScale - graphOffset.y };
+            } else {
+                // Start panning
+                selectedNode = null;
+                isDragging = true;
+                dragStart = { x: e.clientX - graphOffset.x, y: e.clientY - graphOffset.y };
+            }
+        }
+        
+        function handleMouseMove(e) {
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - graphOffset.x) / graphScale;
+            const y = (e.clientY - rect.top - graphOffset.y) / graphScale;
+            
+            // Update hovered node
+            hoveredNode = findNodeAt(x, y);
+            
+            // Show tooltip
+            if (hoveredNode) {
+                const tooltip = document.getElementById('node-tooltip');
+                const typeEl = document.getElementById('tooltip-type');
+                const titleEl = document.getElementById('tooltip-title');
+                const descEl = document.getElementById('tooltip-desc');
+                
+                typeEl.textContent = hoveredNode.type.toUpperCase();
+                typeEl.className = 'tooltip-type ' + hoveredNode.type;
+                titleEl.textContent = hoveredNode.label;
+                descEl.textContent = hoveredNode.description || 'No description';
+                
+                tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+                tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
+                tooltip.classList.add('visible');
+            } else {
+                document.getElementById('node-tooltip').classList.remove('visible');
+            }
+            
+            if (!isDragging) return;
+            
+            if (selectedNode) {
+                // Drag node
+                selectedNode.x = (e.clientX - dragStart.x - graphOffset.x) / graphScale;
+                selectedNode.y = (e.clientY - dragStart.y - graphOffset.y) / graphScale;
+            } else {
+                // Pan view
+                graphOffset.x = e.clientX - dragStart.x;
+                graphOffset.y = e.clientY - dragStart.y;
+            }
+        }
+        
+        function handleMouseUp() {
+            isDragging = false;
+        }
+        
+        function handleMouseLeave() {
+            isDragging = false;
+            hoveredNode = null;
+            document.getElementById('node-tooltip').classList.remove('visible');
+        }
+        
+        function handleWheel(e) {
+            e.preventDefault();
+            const rect = graphCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+            const newScale = Math.max(0.2, Math.min(3, graphScale * zoomFactor));
+            
+            // Zoom towards mouse position
+            graphOffset.x = mouseX - (mouseX - graphOffset.x) * (newScale / graphScale);
+            graphOffset.y = mouseY - (mouseY - graphOffset.y) * (newScale / graphScale);
+            graphScale = newScale;
+        }
+        
+        function handleDoubleClick(e) {
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - graphOffset.x) / graphScale;
+            const y = (e.clientY - rect.top - graphOffset.y) / graphScale;
+            
+            const node = findNodeAt(x, y);
+            if (node) {
+                // Navigate to entity section
+                const sectionMap = {
+                    project: 'projects',
+                    task: 'tasks',
+                    problem: 'problems',
+                    outcome: 'outcomes',
+                    goal: 'goals'
+                };
+                switchSection(sectionMap[node.type]);
+            }
+        }
+        
+        function findNodeAt(x, y) {
+            const visibleNodes = graphNodes.filter(n => visibleTypes[n.type]);
+            for (let i = visibleNodes.length - 1; i >= 0; i--) {
+                const node = visibleNodes[i];
+                const radius = nodeSizes[node.type];
+                const dx = x - node.x;
+                const dy = y - node.y;
+                if (dx * dx + dy * dy <= radius * radius) {
+                    return node;
+                }
+            }
+            return null;
+        }
+        
+        function changeLayout() {
+            const layout = document.getElementById('graph-layout').value;
+            applyLayout(layout);
+        }
+        
+        function resetGraphView() {
+            graphScale = 1;
+            graphOffset = { x: 0, y: 0 };
+            selectedNode = null;
+            applyLayout(currentLayout);
+        }
+        
+        function zoomIn() {
+            graphScale = Math.min(3, graphScale * 1.2);
+        }
+        
+        function zoomOut() {
+            graphScale = Math.max(0.2, graphScale / 1.2);
+        }
+        
+        function toggleEntityType(type) {
+            visibleTypes[type] = !visibleTypes[type];
+            const toggle = event.target.closest('.filter-toggle');
+            toggle.classList.toggle('active', visibleTypes[type]);
         }
     </script>
 </body>
