@@ -121,6 +121,11 @@ func createProjectTool() mcp.Tool {
 					"type":        "string",
 					"description": "Project description",
 				},
+				"status": map[string]interface{}{
+					"type":        "string",
+					"description": "Project status (active, planning, on_hold, completed, archived) - default: active",
+					"enum":        []string{"active", "planning", "on_hold", "completed", "archived"},
+				},
 				"external_link": map[string]interface{}{
 					"type":        "string",
 					"description": "External link to ticket system or other tracking tool",
@@ -138,14 +143,15 @@ func createProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	}
 
 	description := request.GetString("description", "")
+	status := request.GetString("status", "active")
 	externalLink := request.GetString("external_link", "")
 
-	project, err := db.CreateProject(name, description, externalLink)
+	project, err := db.CreateProject(name, description, status, externalLink)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create project: %v", err)), nil
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Project created successfully: ID=%d, Name=%s", project.ID, project.Name)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Project created successfully: ID=%d, Name=%s, Status=%s", project.ID, project.Name, project.Status)), nil
 }
 
 func listProjectsTool() mcp.Tool {
@@ -175,7 +181,7 @@ func listProjectsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		if p.ExternalLink != "" {
 			externalLinkStr = fmt.Sprintf(", External Link: %s", p.ExternalLink)
 		}
-		result += fmt.Sprintf("- ID: %d, Name: %s, Description: %s%s\n", p.ID, p.Name, p.Description, externalLinkStr)
+		result += fmt.Sprintf("- ID: %d, Name: %s, Status: %s, Description: %s%s\n", p.ID, p.Name, p.Status, p.Description, externalLinkStr)
 	}
 
 	return mcp.NewToolResultText(result), nil
@@ -210,8 +216,8 @@ func getProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get project: %v", err)), nil
 	}
 
-	result := fmt.Sprintf("Project Details:\nID: %d\nName: %s\nDescription: %s\nExternal Link: %s\nCreated: %s\nUpdated: %s",
-		project.ID, project.Name, project.Description, project.ExternalLink, project.CreatedAt, project.UpdatedAt)
+	result := fmt.Sprintf("Project Details:\nID: %d\nName: %s\nStatus: %s\nDescription: %s\nExternal Link: %s\nCreated: %s\nUpdated: %s",
+		project.ID, project.Name, project.Status, project.Description, project.ExternalLink, project.CreatedAt, project.UpdatedAt)
 
 	return mcp.NewToolResultText(result), nil
 }
@@ -234,6 +240,11 @@ func updateProjectTool() mcp.Tool {
 				"description": map[string]interface{}{
 					"type":        "string",
 					"description": "Project description (optional)",
+				},
+				"status": map[string]interface{}{
+					"type":        "string",
+					"description": "Project status (active, planning, on_hold, completed, archived) (optional)",
+					"enum":        []string{"active", "planning", "on_hold", "completed", "archived"},
 				},
 				"external_link": map[string]interface{}{
 					"type":        "string",
@@ -264,16 +275,21 @@ func updateProjectHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 		description = &desc
 	}
 
+	var status *string
+	if st, ok := arguments["status"].(string); ok {
+		status = &st
+	}
+
 	var externalLink *string
 	if link, ok := arguments["external_link"].(string); ok {
 		externalLink = &link
 	}
 
-	if name == nil && description == nil && externalLink == nil {
-		return mcp.NewToolResultError("at least one field (name, description, or external_link) must be provided for update"), nil
+	if name == nil && description == nil && status == nil && externalLink == nil {
+		return mcp.NewToolResultError("at least one field (name, description, status, or external_link) must be provided for update"), nil
 	}
 
-	project, err := db.UpdateProject(id, name, description, externalLink)
+	project, err := db.UpdateProject(id, name, description, status, externalLink)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to update project: %v", err)), nil
 	}

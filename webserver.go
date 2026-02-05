@@ -684,6 +684,10 @@ const dashboardHTML = `<!DOCTYPE html>
         .badge.status-blocked { background: rgba(244, 33, 46, 0.2); color: var(--accent-red); }
         .badge.status-open { background: rgba(255, 217, 61, 0.2); color: var(--accent-yellow); }
         .badge.status-resolved { background: rgba(0, 186, 124, 0.2); color: var(--accent-green); }
+        .badge.status-active { background: rgba(0, 186, 124, 0.2); color: var(--accent-green); }
+        .badge.status-planning { background: rgba(29, 155, 240, 0.2); color: var(--accent-blue); }
+        .badge.status-on_hold { background: rgba(255, 217, 61, 0.2); color: var(--accent-yellow); }
+        .badge.status-archived { background: rgba(139, 153, 166, 0.2); color: var(--text-secondary); }
 
         .badge.priority-low { background: rgba(139, 153, 166, 0.2); color: var(--text-secondary); }
         .badge.priority-medium { background: rgba(255, 217, 61, 0.2); color: var(--accent-yellow); }
@@ -1367,6 +1371,16 @@ const dashboardHTML = `<!DOCTYPE html>
                 <div class="section-header">
                     <h2 class="section-title">Projects</h2>
                 </div>
+                <div class="filters">
+                    <select class="filter-select" id="project-status-filter" onchange="filterProjects()">
+                        <option value="">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="planning">Planning</option>
+                        <option value="on_hold">On Hold</option>
+                        <option value="completed">Completed</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </div>
                 <div class="cards-grid" id="projects-grid"></div>
             </section>
 
@@ -1637,7 +1651,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     initGraph();
                     break;
                 case 'projects':
-                    renderProjects();
+                    filterProjects();
                     break;
                 case 'tasks':
                     filterTasks();
@@ -1720,10 +1734,16 @@ const dashboardHTML = `<!DOCTYPE html>
         }
 
         // Render Projects
-        function renderProjects() {
-            const grid = document.getElementById('projects-grid');
-            const filtered = filterBySearch(data.projects, ['name', 'description']);
+        // Filter and render projects
+        function filterProjects() {
+            const status = document.getElementById('project-status-filter').value;
+            
+            let filtered = [...data.projects];
+            if (status) filtered = filtered.filter(p => p.status === status);
+            
+            filtered = filterBySearch(filtered, ['name', 'description']);
 
+            const grid = document.getElementById('projects-grid');
             if (filtered.length === 0) {
                 grid.innerHTML = renderEmptyState('No projects found', 'Create a project using create_project MCP tool.');
                 return;
@@ -1752,6 +1772,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     <div class="card-body">
                         <div class="card-description">${escapeHtml(project.description) || 'No description'}</div>
                         <div class="card-meta">
+                            <span class="badge status-${project.status}">${project.status.replace('_', ' ')}</span>
                             <span class="badge status-pending">Pending: ${tasksByStatus.pending}</span>
                             <span class="badge status-in_progress">In Progress: ${tasksByStatus.in_progress}</span>
                             <span class="badge status-completed">Completed: ${tasksByStatus.completed}</span>

@@ -53,6 +53,7 @@ Create a new project.
 **Arguments:**
 - `name` (string, required): Project name
 - `description` (string, optional): Project description
+- `status` (string, optional): Project status (active, planning, on_hold, completed, archived) - default: "active"
 - `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### list_projects
@@ -71,6 +72,7 @@ Update an existing project. Only provided fields will be updated.
 - `id` (number, required): Project ID
 - `name` (string, optional): Project name
 - `description` (string, optional): Project description
+- `status` (string, optional): Project status (active, planning, on_hold, completed, archived)
 - `external_link` (string, optional): External link to ticket system or other tracking tool
 
 #### delete_project
@@ -338,10 +340,10 @@ Then open your browser to http://localhost:8080 to view the dashboard.
 ### Dashboard Features
 
 - **Overview**: Shows recent activity across all data types
-- **Projects**: View and filter all projects with task status summaries
+- **Projects**: View and filter all projects by status (active, planning, on_hold, completed, archived) with task status summaries
 - **Tasks**: Filter by status, priority, type, and project
-- **Problems**: Track issues linked to projects and tasks
-- **Outcomes**: Monitor progress tracking for projects
+- **Problems**: Track issues linked to projects and tasks with status filtering
+- **Outcomes**: Monitor progress tracking for projects with status filtering
 - **Goals**: View short-term, career, values, and requirement goals
 - **Real-time Updates**: Dashboard automatically refreshes when data changes
 - **Search**: Global search across all items
