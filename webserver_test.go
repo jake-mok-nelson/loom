@@ -135,7 +135,7 @@ func TestHandleProjectsWithData(t *testing.T) {
 	defer cleanup()
 
 	// Create test project
-	_, err := testDB.CreateProject("Test Project", "A test description", "https://example.com")
+	_, err := testDB.CreateProject("Test Project", "A test description", "", "https://example.com")
 	if err != nil {
 		t.Fatalf("Failed to create test project: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestHandleTasksWithFilters(t *testing.T) {
 	defer cleanup()
 
 	// Create test project and tasks
-	project, _ := testDB.CreateProject("Test Project", "", "")
+	project, _ := testDB.CreateProject("Test Project", "", "", "")
 	testDB.CreateTask(project.ID, "Task 1", "", "pending", "high", "feature", "")
 	testDB.CreateTask(project.ID, "Task 2", "", "completed", "low", "bugfix", "")
 
@@ -251,7 +251,7 @@ func TestHandleProblemsWithData(t *testing.T) {
 	defer cleanup()
 
 	// Create test problem
-	project, _ := testDB.CreateProject("Test Project", "", "")
+	project, _ := testDB.CreateProject("Test Project", "", "", "")
 	_, err := testDB.CreateProblem(&project.ID, nil, "Test Problem", "A problem description", "open")
 	if err != nil {
 		t.Fatalf("Failed to create test problem: %v", err)
@@ -302,7 +302,7 @@ func TestHandleOutcomesWithData(t *testing.T) {
 	defer cleanup()
 
 	// Create test outcome
-	project, _ := testDB.CreateProject("Test Project", "", "")
+	project, _ := testDB.CreateProject("Test Project", "", "", "")
 	_, err := testDB.CreateOutcome(project.ID, nil, "Test Outcome", "An outcome description", "open")
 	if err != nil {
 		t.Fatalf("Failed to create test outcome: %v", err)

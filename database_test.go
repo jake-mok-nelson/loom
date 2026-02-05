@@ -27,7 +27,7 @@ func newTestDatabase(t *testing.T) *Database {
 func TestCreateProject(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, err := db.CreateProject("Test Project", "A description", "https://example.com")
+	project, err := db.CreateProject("Test Project", "A description", "", "https://example.com")
 	if err != nil {
 		t.Fatalf("failed to create project: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestCreateProject(t *testing.T) {
 func TestGetProject(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, err := db.CreateProject("My Project", "desc", "")
+	project, err := db.CreateProject("My Project", "desc", "", "")
 	if err != nil {
 		t.Fatalf("failed to create project: %v", err)
 	}
@@ -82,8 +82,8 @@ func TestListProjects(t *testing.T) {
 		t.Fatalf("expected 0 projects, got %d", len(projects))
 	}
 
-	db.CreateProject("P1", "", "")
-	db.CreateProject("P2", "", "")
+	db.CreateProject("P1", "", "", "")
+	db.CreateProject("P2", "", "", "")
 
 	projects, err = db.ListProjects()
 	if err != nil {
@@ -97,14 +97,14 @@ func TestListProjects(t *testing.T) {
 func TestUpdateProject(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, err := db.CreateProject("Original", "original desc", "")
+	project, err := db.CreateProject("Original", "original desc", "", "")
 	if err != nil {
 		t.Fatalf("failed to create project: %v", err)
 	}
 
 	newName := "Updated"
 	newDesc := "updated desc"
-	updated, err := db.UpdateProject(project.ID, &newName, &newDesc, nil)
+	updated, err := db.UpdateProject(project.ID, &newName, &newDesc, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to update project: %v", err)
 	}
@@ -119,12 +119,12 @@ func TestUpdateProject(t *testing.T) {
 func TestUpdateProjectNoFields(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, err := db.CreateProject("NoChange", "", "")
+	project, err := db.CreateProject("NoChange", "", "", "")
 	if err != nil {
 		t.Fatalf("failed to create project: %v", err)
 	}
 
-	result, err := db.UpdateProject(project.ID, nil, nil, nil)
+	result, err := db.UpdateProject(project.ID, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to update project with no fields: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestUpdateProjectNoFields(t *testing.T) {
 func TestDeleteProject(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, err := db.CreateProject("ToDelete", "", "")
+	project, err := db.CreateProject("ToDelete", "", "", "")
 	if err != nil {
 		t.Fatalf("failed to create project: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestDeleteProjectNotFound(t *testing.T) {
 func TestCreateTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 
 	task, err := db.CreateTask(project.ID, "Task 1", "desc", "pending", "medium", "general", "https://jira.example.com/1")
 	if err != nil {
@@ -191,7 +191,7 @@ func TestCreateTask(t *testing.T) {
 func TestCreateTaskDefaultType(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 
 	task, err := db.CreateTask(project.ID, "Task", "", "pending", "low", "", "")
 	if err != nil {
@@ -205,7 +205,7 @@ func TestCreateTaskDefaultType(t *testing.T) {
 func TestGetTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "Task 1", "desc", "pending", "medium", "feature", "")
 
 	loaded, err := db.GetTask(task.ID)
@@ -232,7 +232,7 @@ func TestGetTaskNotFound(t *testing.T) {
 func TestListTasks(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	db.CreateTask(project.ID, "T1", "", "pending", "low", "general", "")
 	db.CreateTask(project.ID, "T2", "", "completed", "high", "bugfix", "")
 
@@ -278,7 +278,7 @@ func TestListTasks(t *testing.T) {
 func TestUpdateTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "Original", "", "pending", "low", "general", "")
 
 	newTitle := "Updated"
@@ -306,7 +306,7 @@ func TestUpdateTask(t *testing.T) {
 func TestDeleteTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	if err := db.DeleteTask(task.ID); err != nil {
@@ -360,7 +360,7 @@ func TestCreateProblemWithoutProject(t *testing.T) {
 func TestCreateProblemWithProject(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	problem, err := db.CreateProblem(&project.ID, nil, "Linked problem", "desc", "open")
 	if err != nil {
 		t.Fatalf("failed to create problem: %v", err)
@@ -373,7 +373,7 @@ func TestCreateProblemWithProject(t *testing.T) {
 func TestCreateProblemWithTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	problem, err := db.CreateProblem(&project.ID, &task.ID, "Task problem", "", "open")
@@ -397,7 +397,7 @@ func TestGetProblemNotFound(t *testing.T) {
 func TestListProblemsFiltered(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	db.CreateProblem(&project.ID, &task.ID, "P1", "", "open")
@@ -471,7 +471,7 @@ func TestDeleteProblemNotFound(t *testing.T) {
 func TestCreateOutcome(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 
 	outcome, err := db.CreateOutcome(project.ID, nil, "Outcome 1", "desc", "open")
 	if err != nil {
@@ -491,7 +491,7 @@ func TestCreateOutcome(t *testing.T) {
 func TestCreateOutcomeWithTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	outcome, err := db.CreateOutcome(project.ID, &task.ID, "Outcome", "", "open")
@@ -515,8 +515,8 @@ func TestGetOutcomeNotFound(t *testing.T) {
 func TestListOutcomes(t *testing.T) {
 	db := newTestDatabase(t)
 
-	p1, _ := db.CreateProject("P1", "", "")
-	p2, _ := db.CreateProject("P2", "", "")
+	p1, _ := db.CreateProject("P1", "", "", "")
+	p2, _ := db.CreateProject("P2", "", "", "")
 	task, _ := db.CreateTask(p1.ID, "T", "", "pending", "low", "general", "")
 
 	db.CreateOutcome(p1.ID, &task.ID, "O1", "", "open")
@@ -552,7 +552,7 @@ func TestListOutcomes(t *testing.T) {
 func TestUpdateOutcome(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	outcome, _ := db.CreateOutcome(project.ID, nil, "Original", "", "open")
 
 	newTitle := "Updated"
@@ -572,7 +572,7 @@ func TestUpdateOutcome(t *testing.T) {
 func TestDeleteOutcome(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	outcome, _ := db.CreateOutcome(project.ID, nil, "ToDelete", "", "open")
 
 	if err := db.DeleteOutcome(outcome.ID); err != nil {
@@ -638,7 +638,7 @@ func TestCreateGoalWithoutProject(t *testing.T) {
 func TestCreateGoalWithProject(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	goal, err := db.CreateGoal(&project.ID, nil, "Project goal", "", "short_term")
 	if err != nil {
 		t.Fatalf("failed to create goal with project: %v", err)
@@ -651,7 +651,7 @@ func TestCreateGoalWithProject(t *testing.T) {
 func TestCreateGoalWithTask(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	goal, err := db.CreateGoal(&project.ID, &task.ID, "Task goal", "", "requirement")
@@ -687,7 +687,7 @@ func TestGetGoalNotFound(t *testing.T) {
 func TestListGoalsFiltered(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	db.CreateGoal(&project.ID, &task.ID, "G1", "", "short_term")
@@ -728,7 +728,7 @@ func TestDeleteGoalNotFound(t *testing.T) {
 func TestCreateTaskNote(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	note, err := db.CreateTaskNote(task.ID, "This is a note")
@@ -746,7 +746,7 @@ func TestCreateTaskNote(t *testing.T) {
 func TestGetTaskNote(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	note, _ := db.CreateTaskNote(task.ID, "A note")
 
@@ -771,7 +771,7 @@ func TestGetTaskNoteNotFound(t *testing.T) {
 func TestListTaskNotes(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	db.CreateTaskNote(task.ID, "Note 1")
@@ -789,7 +789,7 @@ func TestListTaskNotes(t *testing.T) {
 func TestListTaskNotesEmpty(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 
 	notes, err := db.ListTaskNotes(task.ID)
@@ -804,7 +804,7 @@ func TestListTaskNotesEmpty(t *testing.T) {
 func TestUpdateTaskNote(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	note, _ := db.CreateTaskNote(task.ID, "Original note")
 
@@ -820,7 +820,7 @@ func TestUpdateTaskNote(t *testing.T) {
 func TestDeleteTaskNote(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	note, _ := db.CreateTaskNote(task.ID, "To delete")
 
@@ -847,7 +847,7 @@ func TestDeleteTaskNoteNotFound(t *testing.T) {
 func TestDeleteProjectCascadesToTasks(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task1, _ := db.CreateTask(project.ID, "T1", "", "pending", "low", "general", "")
 	task2, _ := db.CreateTask(project.ID, "T2", "", "pending", "low", "general", "")
 
@@ -869,7 +869,7 @@ func TestDeleteProjectCascadesToTasks(t *testing.T) {
 func TestDeleteProjectCascadesToOutcomes(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	outcome, _ := db.CreateOutcome(project.ID, nil, "O", "", "open")
 
 	if err := db.DeleteProject(project.ID); err != nil {
@@ -885,7 +885,7 @@ func TestDeleteProjectCascadesToOutcomes(t *testing.T) {
 func TestDeleteProjectSetsNullOnProblems(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	problem, _ := db.CreateProblem(&project.ID, nil, "Problem", "", "open")
 
 	if err := db.DeleteProject(project.ID); err != nil {
@@ -905,7 +905,7 @@ func TestDeleteProjectSetsNullOnProblems(t *testing.T) {
 func TestDeleteProjectSetsNullOnGoals(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	goal, _ := db.CreateGoal(&project.ID, nil, "Goal", "", "short_term")
 
 	if err := db.DeleteProject(project.ID); err != nil {
@@ -924,7 +924,7 @@ func TestDeleteProjectSetsNullOnGoals(t *testing.T) {
 func TestDeleteTaskCascadesToNotes(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	note, _ := db.CreateTaskNote(task.ID, "A note")
 
@@ -941,7 +941,7 @@ func TestDeleteTaskCascadesToNotes(t *testing.T) {
 func TestDeleteTaskSetsNullOnProblems(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	problem, _ := db.CreateProblem(&project.ID, &task.ID, "Problem", "", "open")
 
@@ -965,7 +965,7 @@ func TestDeleteTaskSetsNullOnProblems(t *testing.T) {
 func TestDeleteTaskSetsNullOnOutcomes(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	outcome, _ := db.CreateOutcome(project.ID, &task.ID, "Outcome", "", "open")
 
@@ -985,7 +985,7 @@ func TestDeleteTaskSetsNullOnOutcomes(t *testing.T) {
 func TestDeleteTaskSetsNullOnGoals(t *testing.T) {
 	db := newTestDatabase(t)
 
-	project, _ := db.CreateProject("P", "", "")
+	project, _ := db.CreateProject("P", "", "", "")
 	task, _ := db.CreateTask(project.ID, "T", "", "pending", "low", "general", "")
 	goal, _ := db.CreateGoal(&project.ID, &task.ID, "Goal", "", "short_term")
 
@@ -1057,7 +1057,7 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	}
 
 	// Create some data
-	_, err = db1.CreateProject("Test", "", "")
+	_, err = db1.CreateProject("Test", "", "", "")
 	if err != nil {
 		t.Fatalf("failed to create project: %v", err)
 	}
