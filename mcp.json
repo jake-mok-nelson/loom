@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "loom": {
+      "command": "loom",
+      "args": [],
+      "env": {}
+    }
+  }
+}
