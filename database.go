@@ -19,6 +19,7 @@ type Project struct {
 	ID           int64     `json:"id"`
 	Name         string    `json:"name"`
 	Description  string    `json:"description"`
+	Status       string    `json:"status"`
 	ExternalLink string    `json:"external_link"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -202,11 +203,22 @@ func (d *Database) initSchema() error {
 		return err
 	}
 
+	// Add status column to projects table
+	if _, err := d.db.Exec("ALTER TABLE projects ADD COLUMN status TEXT DEFAULT 'active'"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+	if _, err := d.db.Exec("UPDATE projects SET status = 'active' WHERE status IS NULL OR status = ''"); err != nil {
+		return err
+	}
+
 	if err := d.ensureProblemProjectOptional(); err != nil {
 		return err
 	}
 
 	indexes := `
+	CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 	CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 	CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);
@@ -266,10 +278,13 @@ func (d *Database) Close() error {
 
 // Project operations
 
-func (d *Database) CreateProject(name, description, externalLink string) (*Project, error) {
+func (d *Database) CreateProject(name, description, status, externalLink string) (*Project, error) {
+	if status == "" {
+		status = "active"
+	}
 	result, err := d.db.Exec(
-		"INSERT INTO projects (name, description, external_link) VALUES (?, ?, ?)",
-		name, description, externalLink,
+		"INSERT INTO projects (name, description, status, external_link) VALUES (?, ?, ?, ?)",
+		name, description, status, externalLink,
 	)
 	if err != nil {
 		return nil, err
@@ -286,9 +301,9 @@ func (d *Database) CreateProject(name, description, externalLink string) (*Proje
 func (d *Database) GetProject(id int64) (*Project, error) {
 	var p Project
 	err := d.db.QueryRow(
-		"SELECT id, name, description, external_link, created_at, updated_at FROM projects WHERE id = ?",
+		"SELECT id, name, description, COALESCE(external_link, ''), created_at, updated_at, COALESCE(status, 'active') FROM projects WHERE id = ?",
 		id,
-	).Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt, &p.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +312,7 @@ func (d *Database) GetProject(id int64) (*Project, error) {
 
 func (d *Database) ListProjects() ([]*Project, error) {
 	rows, err := d.db.Query(
-		"SELECT id, name, description, external_link, created_at, updated_at FROM projects ORDER BY updated_at DESC",
+		"SELECT id, name, description, COALESCE(external_link, ''), created_at, updated_at, COALESCE(status, 'active') FROM projects ORDER BY updated_at DESC",
 	)
 	if err != nil {
 		return nil, err
@@ -307,7 +322,7 @@ func (d *Database) ListProjects() ([]*Project, error) {
 	var projects []*Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt, &p.Status); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -315,7 +330,7 @@ func (d *Database) ListProjects() ([]*Project, error) {
 	return projects, rows.Err()
 }
 
-func (d *Database) UpdateProject(id int64, name, description, externalLink *string) (*Project, error) {
+func (d *Database) UpdateProject(id int64, name, description, status, externalLink *string) (*Project, error) {
 	updates := []string{}
 	args := []interface{}{}
 
@@ -326,6 +341,10 @@ func (d *Database) UpdateProject(id int64, name, description, externalLink *stri
 	if description != nil {
 		updates = append(updates, "description = ?")
 		args = append(args, *description)
+	}
+	if status != nil {
+		updates = append(updates, "status = ?")
+		args = append(args, *status)
 	}
 	if externalLink != nil {
 		updates = append(updates, "external_link = ?")
