@@ -1,16 +1,17 @@
 # Loom
 
-Loom is an MCP (Model Context Protocol) server that efficiently and simply helps users of LLMs like Claude to manage their projects and tasks. It provides convenient MCP tools for project and task management in a local SQLite database.
+Loom is a web-based project and task management application that efficiently helps you manage your projects, tasks, problems, goals, and outcomes. It provides a modern web dashboard with real-time updates and a REST API for programmatic access, all backed by a local SQLite database.
 
 ## Features
 
-- **Project Management**: Create, list, get, update, and delete projects
+- **Project Management**: Create, list, get, update, and delete projects via web UI and REST API
 - **Task Management**: Create, list, get, update, and delete tasks with status, priority, type, and notes
 - **Problem Tracking**: Capture problems linked to projects and optionally to specific tasks
 - **Goal Tracking**: Capture goals with optional project/task links and goal types
 - **Outcome Tracking**: Track outcomes linked to projects and optionally to tasks for progress over time
+- **Web Dashboard**: Modern, responsive web interface with real-time updates via Server-Sent Events (SSE)
+- **REST API**: Full REST API for programmatic access to all features
 - **Local Storage**: All data stored in a local SQLite database (default: `~/.loom/loom.db`)
-- **MCP Integration**: Works seamlessly with any MCP-compatible LLM client
 
 ## Installation
 
@@ -41,301 +42,32 @@ By default, Loom stores its database at `~/.loom/loom.db`. You can customize thi
 export LOOM_DB_PATH=/path/to/your/loom.db
 ```
 
-## MCP Tools
-
-Loom provides the following MCP tools:
-
-### Project Management
-
-#### create_project
-Create a new project.
-
-**Arguments:**
-- `name` (string, required): Project name
-- `description` (string, optional): Project description
-- `status` (string, optional): Project status (active, planning, on_hold, completed, archived) - default: "active"
-- `external_link` (string, optional): External link to ticket system or other tracking tool
-
-#### list_projects
-List all projects.
-
-#### get_project
-Get details of a specific project.
-
-**Arguments:**
-- `id` (number, required): Project ID
-
-#### update_project
-Update an existing project. Only provided fields will be updated.
-
-**Arguments:**
-- `id` (number, required): Project ID
-- `name` (string, optional): Project name
-- `description` (string, optional): Project description
-- `status` (string, optional): Project status (active, planning, on_hold, completed, archived)
-- `external_link` (string, optional): External link to ticket system or other tracking tool
-
-#### delete_project
-Delete a project and all its associated tasks.
-
-**Arguments:**
-- `id` (number, required): Project ID
-
-### Task Management
-
-#### create_task
-Create a new task in a project.
-
-**Arguments:**
-- `project_id` (number, required): Project ID
-- `title` (string, required): Task title
-- `description` (string, optional): Task description
-- `task_type` (string, optional): Task type (general, chore, investigation, feature, bugfix) - default: "general"
-- `status` (string, optional): Task status (pending, in_progress, completed, blocked) - default: "pending"
-- `priority` (string, optional): Task priority (low, medium, high, urgent) - default: "medium"
-- `external_link` (string, optional): External link to ticket system or other tracking tool
-
-#### list_tasks
-List tasks, optionally filtered by project, type, and/or status.
-
-**Arguments:**
-- `project_id` (number, optional): Filter by project ID
-- `task_type` (string, optional): Filter by task type
-- `status` (string, optional): Filter by status
-
-#### get_task
-Get details of a specific task.
-
-**Arguments:**
-- `id` (number, required): Task ID
-
-#### update_task
-Update an existing task. Only provided fields will be updated.
-
-**Arguments:**
-- `id` (number, required): Task ID
-- `title` (string, optional): Task title
-- `description` (string, optional): Task description
-- `status` (string, optional): Task status (pending, in_progress, completed, blocked)
-- `priority` (string, optional): Task priority (low, medium, high, urgent)
-- `task_type` (string, optional): Task type (general, chore, investigation, feature, bugfix)
-- `external_link` (string, optional): External link to ticket system or other tracking tool
-
-#### delete_task
-Delete a task.
-
-**Arguments:**
-- `id` (number, required): Task ID
-
-### Problem Management
-
-#### create_problem
-Create a new problem optionally linked to a project and/or task.
-
-**Arguments:**
-- `project_id` (number, optional): Project ID
-- `task_id` (number, optional): Task ID (must belong to the project if provided)
-- `title` (string, required): Problem title
-- `description` (string, optional): Problem description
-- `status` (string, optional): Problem status (open, in_progress, resolved, blocked) - default: "open"
-
-#### list_problems
-List problems, optionally filtered by project, task, and/or status.
-
-**Arguments:**
-- `project_id` (number, optional): Filter by project ID
-- `task_id` (number, optional): Filter by task ID
-- `status` (string, optional): Filter by status
-
-#### get_problem
-Get details of a specific problem.
-
-**Arguments:**
-- `id` (number, required): Problem ID
-
-#### update_problem
-Update an existing problem. Only provided fields will be updated.
-
-**Arguments:**
-- `id` (number, required): Problem ID
-- `title` (string, optional): Problem title
-- `description` (string, optional): Problem description
-- `status` (string, optional): Problem status (open, in_progress, resolved, blocked)
-
-#### delete_problem
-Delete a problem.
-
-**Arguments:**
-- `id` (number, required): Problem ID
-
-### Outcome Management
-
-#### create_outcome
-Create a new outcome linked to a project and optionally to a task.
-
-**Arguments:**
-- `project_id` (number, required): Project ID
-- `task_id` (number, optional): Task ID (must belong to the project)
-- `title` (string, required): Outcome title
-- `description` (string, optional): Outcome description
-- `status` (string, optional): Outcome status (open, in_progress, completed, blocked) - default: "open"
-
-#### list_outcomes
-List outcomes, optionally filtered by project, task, and/or status.
-
-**Arguments:**
-- `project_id` (number, optional): Filter by project ID
-- `task_id` (number, optional): Filter by task ID
-- `status` (string, optional): Filter by status
-
-#### get_outcome
-Get details of a specific outcome.
-
-**Arguments:**
-- `id` (number, required): Outcome ID
-
-#### update_outcome
-Update an existing outcome. Only provided fields will be updated.
-
-**Arguments:**
-- `id` (number, required): Outcome ID
-- `title` (string, optional): Outcome title
-- `description` (string, optional): Outcome description
-- `status` (string, optional): Outcome status (open, in_progress, completed, blocked)
-
-#### delete_outcome
-Delete an outcome.
-
-**Arguments:**
-- `id` (number, required): Outcome ID
-
-### Goal Management
-
-#### create_goal
-Create a new goal linked optionally to a project and/or task.
-
-**Arguments:**
-- `project_id` (number, optional): Project ID
-- `task_id` (number, optional): Task ID (must belong to the project if provided)
-- `title` (string, required): Goal title
-- `description` (string, optional): Goal description
-- `goal_type` (string, optional): Goal type (short_term, career, values, requirement) - default: "short_term"
-
-#### list_goals
-List goals, optionally filtered by project, task, and/or goal type.
-
-**Arguments:**
-- `project_id` (number, optional): Filter by project ID
-- `task_id` (number, optional): Filter by task ID
-- `goal_type` (string, optional): Filter by goal type
-
-#### get_goal
-Get details of a specific goal.
-
-**Arguments:**
-- `id` (number, required): Goal ID
-
-#### update_goal
-Update an existing goal. Only provided fields will be updated.
-
-**Arguments:**
-- `id` (number, required): Goal ID
-- `title` (string, optional): Goal title
-- `description` (string, optional): Goal description
-- `goal_type` (string, optional): Goal type (short_term, career, values, requirement)
-
-#### delete_goal
-Delete a goal.
-
-**Arguments:**
-- `id` (number, required): Goal ID
-
-### Task Note Management
-
-#### create_task_note
-Create a note on a task.
-
-**Arguments:**
-- `task_id` (number, required): Task ID
-- `note` (string, required): Note content
-
-#### list_task_notes
-List notes for a task.
-
-**Arguments:**
-- `task_id` (number, required): Task ID
-
-#### get_task_note
-Get details of a specific task note.
-
-**Arguments:**
-- `id` (number, required): Task note ID
-
-#### update_task_note
-Update an existing task note.
-
-**Arguments:**
-- `id` (number, required): Task note ID
-- `note` (string, required): Note content
-
-#### delete_task_note
-Delete a task note.
-
-**Arguments:**
-- `id` (number, required): Task note ID
-
-## Usage with MCP Clients
-
-To use Loom with an MCP-compatible client (like Claude Desktop), add it to your client's MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "loom": {
-      "command": "/usr/local/bin/loom"
-    }
-  }
-}
-```
-
-Or if you want to use a custom database location:
-
-```json
-{
-  "mcpServers": {
-    "loom": {
-      "command": "/usr/local/bin/loom",
-      "env": {
-        "LOOM_DB_PATH": "/custom/path/loom.db"
-      }
-    }
-  }
-}
-```
-
-## Example Workflow
-
-1. Create a project: `create_project(name="My Web App", description="A new web application project")`
-2. Create tasks: `create_task(project_id=1, title="Setup database", status="in_progress", priority="high")`
-3. List tasks: `list_tasks(project_id=1, status="in_progress")`
-4. Update task: `update_task(id=1, title="Setup database", status="completed")`
-5. View project details: `get_project(id=1)`
-
-## Web Dashboard
-
-Loom includes a reactive web dashboard for visualizing your projects and tasks. The dashboard provides real-time updates via Server-Sent Events (SSE) and a modern, desktop-optimized interface.
+## Usage
 
 ### Starting the Web Server
 
 ```bash
 # Using the binary directly
-./loom -web -addr :8080
+./loom
+
+# Specify a custom port
+./loom -addr :9090
 
 # Using make
 make web
 ```
 
-Then open your browser to http://localhost:8080 to view the dashboard.
+Then open your browser to http://localhost:8080 (or your custom port) to view the dashboard.
+
+### Command-Line Options
+
+- `-addr`: Server address and port (default: `:8080`)
+
+You can also set the `LOOM_DB_PATH` environment variable to use a custom database location.
+
+## Web Dashboard
+
+Loom provides a reactive web dashboard for visualizing and managing your projects and tasks. The dashboard provides real-time updates via Server-Sent Events (SSE) and a modern, desktop-optimized interface.
 
 ### Dashboard Features
 
@@ -349,12 +81,20 @@ Then open your browser to http://localhost:8080 to view the dashboard.
 - **Search**: Global search across all items
 - **Dark Theme**: Modern, eye-friendly dark interface optimized for desktop use
 
-### Command-Line Options
+## REST API
 
-- `-web`: Enable web server mode (required)
-- `-addr`: Server address and port (default: `:8080`)
+Loom provides a REST API for programmatic access to all features. All endpoints return JSON responses.
 
-You can also set the `LOOM_DB_PATH` environment variable to use a custom database location.
+### API Endpoints
+
+- `GET /api/projects` - List all projects
+- `GET /api/tasks?project_id=1&status=pending&task_type=feature` - List tasks with optional filters
+- `GET /api/problems?project_id=1&task_id=2&status=open` - List problems with optional filters
+- `GET /api/outcomes?project_id=1&task_id=2&status=completed` - List outcomes with optional filters
+- `GET /api/goals?project_id=1&task_id=2&goal_type=short_term` - List goals with optional filters
+- `GET /events` - Server-Sent Events (SSE) endpoint for real-time updates
+
+All API endpoints include CORS headers for cross-origin access.
 
 ## Development
 
@@ -369,67 +109,6 @@ go test ./...
 ```bash
 go build -o loom
 ```
-
-## Plugin Installation
-
-Loom is available as a **Claude Desktop Extension** and a **Claude Code Plugin**.
-
-### Claude Code Plugin
-
-This repository includes a `.claude-plugin` directory at the root. 
-
-#### Installation
-
-**Option 1: Install from GitHub (Recommended)**
-
-Install the Loom binary using `go install` with version pinning:
-
-```bash
-go install github.com/jake-mok-nelson/loom@v1.0.0
-```
-
-Then add the plugin to Claude Code:
-
-```bash
-claude plugin add /path/to/loom
-```
-
-The plugin will use the installed binary from your `$GOPATH/bin` directory.
-
-**Option 2: Quick Install Script**
-
-Run the provided installation script:
-
-```bash
-cd /path/to/loom/.claude-plugin
-./install.sh
-```
-
-**Option 3: Local Development**
-
-For local development, you can build from source:
-
-```bash
-cd /path/to/loom
-go build -o $GOPATH/bin/loom
-```
-
-#### Configuration
-
-To customise the database path, edit `.claude-plugin/.mcp.json` and add `LOOM_DB_PATH` to the `env` block:
-
-### Claude Desktop Extension
-
-Download a pre-built `.mcpb` file for your platform from the [Releases](https://github.com/jake-mok-nelson/loom/releases) page, or build from source:
-
-```bash
-# Requires the mcpb CLI
-make plugin-desktop
-```
-
-This cross-compiles for darwin/arm64, darwin/amd64, and linux/amd64 and produces `.mcpb` files in `dist/`. Open the `.mcpb` file with Claude Desktop to install.
-
-The extension provides an optional **Database Path** setting to choose a custom SQLite location (defaults to `~/.loom/loom.db`).
 
 ## License
 
