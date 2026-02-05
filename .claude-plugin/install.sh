@@ -1,6 +1,9 @@
 #!/bin/bash
 # Installation script for Loom Claude Code plugin
 # This script installs the loom binary using go install with a pinned version
+#
+# Usage: ./install.sh
+# Note: This script has executable permissions. If needed, run: chmod +x install.sh
 
 set -e
 
