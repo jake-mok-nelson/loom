@@ -162,6 +162,10 @@
     {
       "name": "delete_task_note",
       "description": "Delete a task note"
+    },
+    {
+      "name": "send_voice_message",
+      "description": "Send a voice message to the user using text-to-speech. The message will be spoken aloud using a UK woman's voice unless the user has muted voice notifications."
     }
   ],
   "user_config": {
