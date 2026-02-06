@@ -183,6 +183,7 @@ func (ws *WebServer) handleProblems(w http.ResponseWriter, r *http.Request) {
 	var projectID *int64
 	var taskID *int64
 	var status *string
+	var assignee *string
 
 	if pidStr := r.URL.Query().Get("project_id"); pidStr != "" {
 		if pid, err := strconv.ParseInt(pidStr, 10, 64); err == nil {
@@ -200,7 +201,11 @@ func (ws *WebServer) handleProblems(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
-	problems, err := ws.db.ListProblems(projectID, taskID, status)
+	if a := r.URL.Query().Get("assignee"); a != "" {
+		assignee = &a
+	}
+
+	problems, err := ws.db.ListProblems(projectID, taskID, status, assignee)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
@@ -259,6 +264,7 @@ func (ws *WebServer) handleGoals(w http.ResponseWriter, r *http.Request) {
 	var projectID *int64
 	var taskID *int64
 	var goalType *string
+	var assignee *string
 
 	if pidStr := r.URL.Query().Get("project_id"); pidStr != "" {
 		if pid, err := strconv.ParseInt(pidStr, 10, 64); err == nil {
@@ -276,7 +282,11 @@ func (ws *WebServer) handleGoals(w http.ResponseWriter, r *http.Request) {
 		goalType = &g
 	}
 
-	goals, err := ws.db.ListGoals(projectID, taskID, goalType)
+	if a := r.URL.Query().Get("assignee"); a != "" {
+		assignee = &a
+	}
+
+	goals, err := ws.db.ListGoals(projectID, taskID, goalType, assignee)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return

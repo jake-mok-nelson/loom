@@ -252,7 +252,7 @@ func TestHandleProblemsWithData(t *testing.T) {
 
 	// Create test problem
 	project, _ := testDB.CreateProject("Test Project", "", "", "")
-	_, err := testDB.CreateProblem(&project.ID, nil, "Test Problem", "A problem description", "open")
+	_, err := testDB.CreateProblem(&project.ID, nil, "Test Problem", "A problem description", "open", "")
 	if err != nil {
 		t.Fatalf("Failed to create test problem: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestHandleGoalsWithData(t *testing.T) {
 	defer cleanup()
 
 	// Create test goal
-	_, err := testDB.CreateGoal(nil, nil, "Test Goal", "A goal description", "short_term")
+	_, err := testDB.CreateGoal(nil, nil, "Test Goal", "A goal description", "short_term", "")
 	if err != nil {
 		t.Fatalf("Failed to create test goal: %v", err)
 	}
