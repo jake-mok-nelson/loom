@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -47,17 +48,26 @@ func (ws *WebServer) Start() error {
 	webMux := http.NewServeMux()
 	webMux.HandleFunc("/", ws.handleDashboard)
 
+	errCh := make(chan error, 1)
+
 	// Start the website server in a goroutine
 	go func() {
 		log.Printf("Starting Loom website server at http://%s", ws.webAddr)
 		if err := http.ListenAndServe(ws.webAddr, webMux); err != nil {
-			log.Fatalf("Website server failed: %v", err)
+			errCh <- fmt.Errorf("website server failed: %w", err)
 		}
 	}()
 
-	// Start the API server (blocking)
-	log.Printf("Starting Loom API server at http://%s", ws.addr)
-	return http.ListenAndServe(ws.addr, apiMux)
+	// Start the API server in a goroutine
+	go func() {
+		log.Printf("Starting Loom API server at http://%s", ws.addr)
+		if err := http.ListenAndServe(ws.addr, apiMux); err != nil {
+			errCh <- fmt.Errorf("API server failed: %w", err)
+		}
+	}()
+
+	// Block until one of the servers fails
+	return <-errCh
 }
 
 // broadcast sends an event to all connected SSE clients
@@ -395,28 +405,17 @@ func (ws *WebServer) handleVoice(w http.ResponseWriter, r *http.Request) {
 
 // apiBaseURL returns the base URL for the API server based on the request host and API address.
 func (ws *WebServer) apiBaseURL(r *http.Request) string {
-	host := r.Host
+	hostname := r.Host
 	// Extract the hostname (without port) from the request
-	hostname := host
-	if colonIdx := findLastColon(hostname); colonIdx != -1 {
-		hostname = hostname[:colonIdx]
+	if h, _, err := net.SplitHostPort(r.Host); err == nil {
+		hostname = h
 	}
 	// Extract the port from the API address
 	apiPort := ws.addr
-	if colonIdx := findLastColon(apiPort); colonIdx != -1 {
-		apiPort = apiPort[colonIdx+1:]
+	if _, p, err := net.SplitHostPort(ws.addr); err == nil {
+		apiPort = p
 	}
 	return fmt.Sprintf("http://%s:%s", hostname, apiPort)
-}
-
-// findLastColon returns the index of the last colon in a string, or -1 if not found.
-func findLastColon(s string) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == ':' {
-			return i
-		}
-	}
-	return -1
 }
 
 // handleDashboard serves the main dashboard HTML
