@@ -26,7 +26,7 @@ func setupTestWebServer(t *testing.T) (*WebServer, *Database, func()) {
 		t.Fatalf("Failed to create database: %v", err)
 	}
 
-	ws := NewWebServer(testDB, ":0")
+	ws := NewWebServer(testDB, ":0", ":0")
 
 	cleanup := func() {
 		testDB.Close()
@@ -48,6 +48,10 @@ func TestNewWebServer(t *testing.T) {
 		t.Errorf("Expected addr :0, got %s", ws.addr)
 	}
 
+	if ws.webAddr != ":0" {
+		t.Errorf("Expected webAddr :0, got %s", ws.webAddr)
+	}
+
 	if ws.clients == nil {
 		t.Error("Expected clients map to be initialized")
 	}
@@ -58,6 +62,7 @@ func TestHandleDashboard(t *testing.T) {
 	defer cleanup()
 
 	req := httptest.NewRequest("GET", "/", nil)
+	req.Host = "localhost:3000"
 	rr := httptest.NewRecorder()
 
 	ws.handleDashboard(rr, req)
@@ -85,6 +90,9 @@ func TestHandleDashboard(t *testing.T) {
 	}
 	if !contains(body, "Projects") {
 		t.Error("Expected Projects navigation")
+	}
+	if !contains(body, "API_BASE_URL") {
+		t.Error("Expected API_BASE_URL to be injected into the HTML")
 	}
 }
 
@@ -473,6 +481,57 @@ func TestCORSHeaders(t *testing.T) {
 				t.Errorf("Expected CORS header *, got %s", cors)
 			}
 		})
+	}
+}
+
+func TestAPIBaseURL(t *testing.T) {
+	ws := NewWebServer(nil, ":8080", ":3000")
+
+	tests := []struct {
+		name     string
+		host     string
+		expected string
+	}{
+		{"localhost with port", "localhost:3000", "http://localhost:8080"},
+		{"ip with port", "192.168.1.1:3000", "http://192.168.1.1:8080"},
+		{"hostname with port", "example.com:3000", "http://example.com:8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Host = tt.host
+			result := ws.apiBaseURL(req)
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestSeparateServers(t *testing.T) {
+	// Create temp directory for test database
+	tempDir, err := os.MkdirTemp("", "loom-separate-server-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	testDB, err := NewDatabase(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create database: %v", err)
+	}
+	defer testDB.Close()
+
+	ws := NewWebServer(testDB, ":0", ":0")
+
+	// Verify the webAddr and addr are different fields
+	if ws.addr == "" {
+		t.Error("Expected non-empty API addr")
+	}
+	if ws.webAddr == "" {
+		t.Error("Expected non-empty web addr")
 	}
 }
 

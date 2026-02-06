@@ -49,24 +49,28 @@ export LOOM_DB_PATH=/path/to/your/loom.db
 
 ## Usage
 
-### Starting the Web Server
+### Starting the Servers
+
+Loom runs the API server (REST API + SSE) and the website (dashboard) on separate ports:
 
 ```bash
-# Using the binary directly
+# Using the binary directly (API on :8080, Dashboard on :3000)
 ./loom
 
-# Specify a custom port
-./loom -addr :9090
+# Specify custom ports
+./loom -addr :9090 -web-addr :4000
 
 # Using make
 make web
 ```
 
-Then open your browser to http://localhost:8080 (or your custom port) to view the dashboard.
+Then open your browser to http://localhost:3000 (or your custom web port) to view the dashboard.
+The API and SSE endpoints are available at http://localhost:8080 (or your custom API port).
 
 ### Command-Line Options
 
-- `-addr`: Server address and port (default: `:8080`)
+- `-addr`: API server address and port (default: `:8080`)
+- `-web-addr`: Website server address and port (default: `:3000`)
 
 You can also set the `LOOM_DB_PATH` environment variable to use a custom database location.
 

@@ -11,7 +11,8 @@ var db *Database
 
 func main() {
 	// Parse command-line flags
-	webAddr := flag.String("addr", ":8080", "Web server address (default :8080)")
+	webAddr := flag.String("addr", ":8080", "API server address (default :8080)")
+	dashboardAddr := flag.String("web-addr", ":3000", "Website server address (default :3000)")
 	flag.Parse()
 
 	// Determine database path
@@ -32,10 +33,10 @@ func main() {
 	}
 	defer db.Close()
 
-	// Start the web server
-	log.Printf("Loom web dashboard starting at http://%s with database at: %s", *webAddr, dbPath)
-	ws := NewWebServer(db, *webAddr)
+	// Start the servers
+	log.Printf("Loom starting - API at http://%s, Dashboard at http://%s, database at: %s", *webAddr, *dashboardAddr, dbPath)
+	ws := NewWebServer(db, *webAddr, *dashboardAddr)
 	if err := ws.Start(); err != nil {
-		log.Fatal("Failed to start web server:", err)
+		log.Fatal("Failed to start server:", err)
 	}
 }

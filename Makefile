@@ -19,7 +19,7 @@ run: build
 
 # Run the web dashboard server
 web: build
-	./loom -addr :8080
+	./loom -addr :8080 -web-addr :3000
 
 # --- Plugin targets ---
 
