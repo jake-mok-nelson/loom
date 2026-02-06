@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"sync"
 	"time"
@@ -40,6 +42,7 @@ func (ws *WebServer) Start() error {
 	mux.HandleFunc("/api/problems", ws.handleProblems)
 	mux.HandleFunc("/api/outcomes", ws.handleOutcomes)
 	mux.HandleFunc("/api/goals", ws.handleGoals)
+	mux.HandleFunc("/api/voice", ws.handleVoice)
 
 	// SSE endpoint for real-time updates
 	mux.HandleFunc("/events", ws.handleSSE)
@@ -299,6 +302,65 @@ func (ws *WebServer) handleGoals(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(goals)
 }
 
+// handleVoice handles text-to-speech conversion
+// Accepts POST requests with JSON body containing "text" field
+// Returns WAV audio file
+func (ws *WebServer) handleVoice(w http.ResponseWriter, r *http.Request) {
+	// Only accept POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the JSON request body
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Text == "" {
+		http.Error(w, "Text field is required", http.StatusBadRequest)
+		return
+	}
+
+	// Generate unique filename for temporary audio file
+	tmpFile := fmt.Sprintf("/tmp/loom-tts-%d.wav", time.Now().UnixNano())
+	defer func() {
+		// Clean up temporary file
+		if err := os.Remove(tmpFile); err != nil {
+			log.Printf("Warning: Failed to remove temporary file %s: %v", tmpFile, err)
+		}
+	}()
+
+	// Use echogarden to synthesize speech
+	// Note: Kokoro is the preferred engine but requires model download from HuggingFace
+	// Using espeak as a working alternative with British English voice
+	cmd := exec.Command("echogarden", "speak", req.Text, tmpFile, "--engine=espeak", "--language=en-GB")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("TTS generation failed: %v\nOutput: %s", err, string(output))
+		http.Error(w, "Failed to generate speech", http.StatusInternalServerError)
+		return
+	}
+
+	// Read the generated audio file
+	audioData, err := os.ReadFile(tmpFile)
+	if err != nil {
+		log.Printf("Failed to read audio file: %v", err)
+		http.Error(w, "Failed to read generated audio", http.StatusInternalServerError)
+		return
+	}
+
+	// Send the audio file as response
+	w.Header().Set("Content-Type", "audio/wav")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(audioData)))
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(audioData)
+}
+
 // handleDashboard serves the main dashboard HTML
 func (ws *WebServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -526,6 +588,29 @@ const dashboardHTML = `<!DOCTYPE html>
         .refresh-btn:hover {
             background: #1a8cd8;
             transform: translateY(-1px);
+        }
+
+        .voice-toggle-btn {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-toggle-btn:hover {
+            background: var(--bg-hover);
+            transform: translateY(-1px);
+        }
+
+        .voice-toggle-btn.muted {
+            opacity: 0.5;
         }
 
         /* Stats Cards */
@@ -1278,6 +1363,9 @@ const dashboardHTML = `<!DOCTYPE html>
                         <span class="status-dot"></span>
                         <span>Disconnected</span>
                     </div>
+                    <button class="voice-toggle-btn" id="voice-toggle" onclick="toggleVoice()" title="Toggle voice notifications">
+                        <span id="voice-icon">🔊</span>
+                    </button>
                     <button class="refresh-btn" onclick="refreshData()">⟳ Refresh</button>
                 </div>
             </header>
@@ -1513,12 +1601,68 @@ const dashboardHTML = `<!DOCTYPE html>
         let projectsMap = {};
         let searchQuery = '';
         let eventSource = null;
+        let voiceMuted = localStorage.getItem('voiceMuted') === 'true';
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             refreshData();
             connectSSE();
+            updateVoiceIcon();
         });
+
+        // Voice functionality
+        function toggleVoice() {
+            voiceMuted = !voiceMuted;
+            localStorage.setItem('voiceMuted', voiceMuted);
+            updateVoiceIcon();
+        }
+
+        function updateVoiceIcon() {
+            const btn = document.getElementById('voice-toggle');
+            const icon = document.getElementById('voice-icon');
+            if (voiceMuted) {
+                icon.textContent = '🔇';
+                btn.classList.add('muted');
+                btn.title = 'Voice notifications muted (click to unmute)';
+            } else {
+                icon.textContent = '🔊';
+                btn.classList.remove('muted');
+                btn.title = 'Voice notifications enabled (click to mute)';
+            }
+        }
+
+        async function speakText(text) {
+            if (voiceMuted) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/voice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    console.error('Voice API error:', response.statusText);
+                    return;
+                }
+
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl);
+                
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                };
+
+                await audio.play();
+            } catch (error) {
+                console.error('Failed to play voice:', error);
+            }
+        }
 
         // Connect to SSE endpoint
         function connectSSE() {
