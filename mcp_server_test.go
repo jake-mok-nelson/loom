@@ -158,7 +158,9 @@ func TestMCPGetAndUpdateProject(t *testing.T) {
 	}
 
 	var updated Project
-	json.Unmarshal([]byte(getTextContent(result)), &updated)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &updated); err != nil {
+		t.Fatalf("Failed to parse updated project JSON: %v", err)
+	}
 	if updated.Name != "Updated" {
 		t.Errorf("Expected updated name 'Updated', got '%s'", updated.Name)
 	}
@@ -179,7 +181,9 @@ func TestMCPDeleteProject(t *testing.T) {
 
 	result = callMCPTool(t, s, "list_projects", map[string]interface{}{})
 	var projects []Project
-	json.Unmarshal([]byte(getTextContent(result)), &projects)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &projects); err != nil {
+		t.Fatalf("Failed to parse projects JSON: %v", err)
+	}
 	if len(projects) != 0 {
 		t.Errorf("Expected 0 projects after delete, got %d", len(projects))
 	}
@@ -204,7 +208,9 @@ func TestMCPCreateAndListTasks(t *testing.T) {
 
 	result = callMCPTool(t, s, "list_tasks", map[string]interface{}{})
 	var tasks []Task
-	json.Unmarshal([]byte(getTextContent(result)), &tasks)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &tasks); err != nil {
+		t.Fatalf("Failed to parse tasks JSON: %v", err)
+	}
 	if len(tasks) != 1 {
 		t.Fatalf("Expected 1 task, got %d", len(tasks))
 	}
@@ -228,7 +234,9 @@ func TestMCPCreateAndListProblems(t *testing.T) {
 
 	result = callMCPTool(t, s, "list_problems", map[string]interface{}{})
 	var problems []Problem
-	json.Unmarshal([]byte(getTextContent(result)), &problems)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &problems); err != nil {
+		t.Fatalf("Failed to parse problems JSON: %v", err)
+	}
 	if len(problems) != 1 {
 		t.Fatalf("Expected 1 problem, got %d", len(problems))
 	}
@@ -251,7 +259,9 @@ func TestMCPCreateAndListGoals(t *testing.T) {
 
 	result = callMCPTool(t, s, "list_goals", map[string]interface{}{})
 	var goals []Goal
-	json.Unmarshal([]byte(getTextContent(result)), &goals)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &goals); err != nil {
+		t.Fatalf("Failed to parse goals JSON: %v", err)
+	}
 	if len(goals) != 1 {
 		t.Fatalf("Expected 1 goal, got %d", len(goals))
 	}
@@ -278,7 +288,9 @@ func TestMCPCreateAndListOutcomes(t *testing.T) {
 
 	result = callMCPTool(t, s, "list_outcomes", map[string]interface{}{})
 	var outcomes []Outcome
-	json.Unmarshal([]byte(getTextContent(result)), &outcomes)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &outcomes); err != nil {
+		t.Fatalf("Failed to parse outcomes JSON: %v", err)
+	}
 	if len(outcomes) != 1 {
 		t.Fatalf("Expected 1 outcome, got %d", len(outcomes))
 	}
@@ -306,7 +318,9 @@ func TestMCPCreateAndListTaskNotes(t *testing.T) {
 		"task_id": float64(task.ID),
 	})
 	var notes []TaskNote
-	json.Unmarshal([]byte(getTextContent(result)), &notes)
+	if err := json.Unmarshal([]byte(getTextContent(result)), &notes); err != nil {
+		t.Fatalf("Failed to parse task notes JSON: %v", err)
+	}
 	if len(notes) != 1 {
 		t.Fatalf("Expected 1 task note, got %d", len(notes))
 	}
