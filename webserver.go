@@ -326,19 +326,33 @@ func (ws *WebServer) handleVoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate unique filename for temporary audio file
-	tmpFile := fmt.Sprintf("/tmp/loom-tts-%d.wav", time.Now().UnixNano())
+	// Validate text length to prevent abuse
+	if len(req.Text) > 5000 {
+		http.Error(w, "Text too long (max 5000 characters)", http.StatusBadRequest)
+		return
+	}
+
+	// Create temporary file securely
+	tmpFile, err := os.CreateTemp("", "loom-tts-*.wav")
+	if err != nil {
+		log.Printf("Failed to create temporary file: %v", err)
+		http.Error(w, "Failed to create temporary file", http.StatusInternalServerError)
+		return
+	}
+	tmpFilePath := tmpFile.Name()
+	tmpFile.Close()
 	defer func() {
 		// Clean up temporary file
-		if err := os.Remove(tmpFile); err != nil {
-			log.Printf("Warning: Failed to remove temporary file %s: %v", tmpFile, err)
+		if err := os.Remove(tmpFilePath); err != nil {
+			log.Printf("Warning: Failed to remove temporary file %s: %v", tmpFilePath, err)
 		}
 	}()
 
 	// Use echogarden to synthesize speech
 	// Note: Kokoro is the preferred engine but requires model download from HuggingFace
 	// Using espeak as a working alternative with British English voice
-	cmd := exec.Command("echogarden", "speak", req.Text, tmpFile, "--engine=espeak", "--language=en-GB")
+	// The text is passed as a command argument - echogarden handles escaping internally
+	cmd := exec.Command("echogarden", "speak", req.Text, tmpFilePath, "--engine=espeak", "--language=en-GB")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("TTS generation failed: %v\nOutput: %s", err, string(output))
@@ -346,8 +360,17 @@ func (ws *WebServer) handleVoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Echogarden appends _001 to the output filename
+	actualPath := tmpFilePath[:len(tmpFilePath)-4] + "_001.wav"
+	defer func() {
+		// Clean up the actual output file
+		if err := os.Remove(actualPath); err != nil {
+			log.Printf("Warning: Failed to remove actual file %s: %v", actualPath, err)
+		}
+	}()
+
 	// Read the generated audio file
-	audioData, err := os.ReadFile(tmpFile)
+	audioData, err := os.ReadFile(actualPath)
 	if err != nil {
 		log.Printf("Failed to read audio file: %v", err)
 		http.Error(w, "Failed to read generated audio", http.StatusInternalServerError)
@@ -1655,6 +1678,11 @@ const dashboardHTML = `<!DOCTYPE html>
                 const audio = new Audio(audioUrl);
                 
                 audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                };
+
+                audio.onerror = (error) => {
+                    console.error('Audio playback error:', error);
                     URL.revokeObjectURL(audioUrl);
                 };
 

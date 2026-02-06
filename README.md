@@ -19,7 +19,7 @@ Loom is a web-based project and task management application that efficiently hel
 ### Prerequisites
 
 - Go 1.23 or later
-- Node.js and npm (for voice notifications feature)
+- Node.js and npm (optional, only needed to install echogarden for voice notifications)
 
 ### Build from Source
 
