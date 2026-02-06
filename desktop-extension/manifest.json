@@ -53,11 +53,11 @@
     },
     {
       "name": "create_problem",
-      "description": "Create a new problem with optional project or task links"
+      "description": "Create a new problem with optional project or task links and assignee"
     },
     {
       "name": "list_problems",
-      "description": "List problems, optionally filtered by project, task, and status"
+      "description": "List problems, optionally filtered by project, task, status, and assignee"
     },
     {
       "name": "get_problem",
@@ -65,11 +65,27 @@
     },
     {
       "name": "update_problem",
-      "description": "Update an existing problem"
+      "description": "Update an existing problem including assignee"
     },
     {
       "name": "delete_problem",
       "description": "Delete a problem"
+    },
+    {
+      "name": "link_problem_to_project",
+      "description": "Link a problem to an additional project (many-to-many relationship)"
+    },
+    {
+      "name": "unlink_problem_from_project",
+      "description": "Remove a problem's link to a project"
+    },
+    {
+      "name": "get_problem_projects",
+      "description": "Get all projects linked to a problem"
+    },
+    {
+      "name": "get_project_problems",
+      "description": "Get all problems linked to a project (via junction table)"
     },
     {
       "name": "create_outcome",
@@ -93,11 +109,11 @@
     },
     {
       "name": "create_goal",
-      "description": "Create a goal with optional project or task links"
+      "description": "Create a goal with optional project or task links and assignee"
     },
     {
       "name": "list_goals",
-      "description": "List goals, optionally filtered by project, task, and goal type"
+      "description": "List goals, optionally filtered by project, task, goal type, and assignee"
     },
     {
       "name": "get_goal",
@@ -105,11 +121,27 @@
     },
     {
       "name": "update_goal",
-      "description": "Update an existing goal"
+      "description": "Update an existing goal including assignee"
     },
     {
       "name": "delete_goal",
       "description": "Delete a goal"
+    },
+    {
+      "name": "link_goal_to_project",
+      "description": "Link a goal to an additional project (many-to-many relationship)"
+    },
+    {
+      "name": "unlink_goal_from_project",
+      "description": "Remove a goal's link to a project"
+    },
+    {
+      "name": "get_goal_projects",
+      "description": "Get all projects linked to a goal"
+    },
+    {
+      "name": "get_project_goals",
+      "description": "Get all goals linked to a project (via junction table)"
     },
     {
       "name": "create_task_note",

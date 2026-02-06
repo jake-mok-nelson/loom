@@ -24,19 +24,39 @@ Timestamped notes attached to a task. Use these to record progress, decisions, c
 Fields: `task_id` (required), `note` (required).
 
 ### Problems
-Issues or blockers, optionally linked to a project and/or task. A problem linked to a task must belong to the same project.
+Issues or blockers, optionally linked to a project and/or task. A problem linked to a task must belong to the same project. Problems support many-to-many relationships with projects via `link_problem_to_project`.
 
-Fields: `title` (required), `project_id`, `task_id`, `description`, `status` (open | in_progress | resolved | blocked).
+Fields: `title` (required), `project_id`, `task_id`, `description`, `status` (open | in_progress | resolved | blocked), `assignee` (optional - use to link problems to a person, e.g., a superior's ID or email).
 
 ### Goals
-Objectives optionally linked to a project and/or task. A goal linked to a task must belong to the same project.
+Objectives optionally linked to a project and/or task. A goal linked to a task must belong to the same project. Goals support many-to-many relationships with projects via `link_goal_to_project`, allowing you to share goals across projects or link your goals to those of your superiors.
 
-Fields: `title` (required), `project_id`, `task_id`, `description`, `goal_type` (short_term | career | values | requirement).
+Fields: `title` (required), `project_id`, `task_id`, `description`, `goal_type` (short_term | career | values | requirement), `assignee` (optional - use to link goals to a person, e.g., your manager or superior).
 
 ### Outcomes
 Results or milestones linked to a project (required) and optionally a task. A task must belong to the same project.
 
 Fields: `project_id` (required), `title` (required), `task_id`, `description`, `status` (open | in_progress | completed | blocked).
+
+## Multiple Project Linkages
+
+Goals and problems can be linked to multiple projects using junction tables:
+- Use `link_goal_to_project` / `unlink_goal_from_project` to manage goal-project relationships
+- Use `link_problem_to_project` / `unlink_problem_from_project` to manage problem-project relationships
+- Use `get_goal_projects` / `get_project_goals` to query goal-project links
+- Use `get_problem_projects` / `get_project_problems` to query problem-project links
+
+This allows you to:
+- Share problems across multiple projects
+- Align your goals with those of your superiors by setting the `assignee` field
+- Track cross-project dependencies and blockers
+
+## Assignee Field
+
+Both goals and problems now support an optional `assignee` field:
+- Use to assign responsibility for a problem or goal
+- Useful for linking your goals to a superior's goals (set assignee to the superior's ID/email)
+- Filter by assignee using `list_goals` or `list_problems` with the `assignee` parameter
 
 ## Proactive Behaviour
 
@@ -80,6 +100,7 @@ When the user mentions a GitHub issue, Jira ticket, or any external reference, s
 
 - Use `list_tasks` with filters (`project_id`, `status`, `task_type`) rather than `get_task` in a loop.
 - Use `list_problems` and `list_outcomes` with filters similarly.
+- Use `list_goals` with filters (`project_id`, `task_id`, `goal_type`, `assignee`) to find specific goals.
 - When giving the user an overview, combine results from multiple list calls to build a complete picture.
 
 ## What NOT to do

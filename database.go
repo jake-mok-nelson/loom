@@ -45,6 +45,7 @@ type Problem struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Status      string    `json:"status"`
+	Assignee    string    `json:"assignee"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -67,6 +68,7 @@ type Goal struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	GoalType    string    `json:"goal_type"`
+	Assignee    string    `json:"assignee"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -217,6 +219,44 @@ func (d *Database) initSchema() error {
 		return err
 	}
 
+	// Add assignee column to problems table
+	if _, err := d.db.Exec("ALTER TABLE problems ADD COLUMN assignee TEXT DEFAULT ''"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+
+	// Add assignee column to goals table
+	if _, err := d.db.Exec("ALTER TABLE goals ADD COLUMN assignee TEXT DEFAULT ''"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+
+	// Create junction tables for multiple project linkages
+	junctionTables := `
+	CREATE TABLE IF NOT EXISTS goal_projects (
+		goal_id INTEGER NOT NULL,
+		project_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (goal_id, project_id),
+		FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS problem_projects (
+		problem_id INTEGER NOT NULL,
+		project_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (problem_id, project_id),
+		FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+	);
+	`
+	if _, err := d.db.Exec(junctionTables); err != nil {
+		return err
+	}
+
 	indexes := `
 	CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
@@ -225,13 +265,19 @@ func (d *Database) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_problems_project_id ON problems(project_id);
 	CREATE INDEX IF NOT EXISTS idx_problems_task_id ON problems(task_id);
 	CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status);
+	CREATE INDEX IF NOT EXISTS idx_problems_assignee ON problems(assignee);
 	CREATE INDEX IF NOT EXISTS idx_outcomes_project_id ON outcomes(project_id);
 	CREATE INDEX IF NOT EXISTS idx_outcomes_task_id ON outcomes(task_id);
 	CREATE INDEX IF NOT EXISTS idx_outcomes_status ON outcomes(status);
 	CREATE INDEX IF NOT EXISTS idx_goals_project_id ON goals(project_id);
 	CREATE INDEX IF NOT EXISTS idx_goals_task_id ON goals(task_id);
 	CREATE INDEX IF NOT EXISTS idx_goals_goal_type ON goals(goal_type);
+	CREATE INDEX IF NOT EXISTS idx_goals_assignee ON goals(assignee);
 	CREATE INDEX IF NOT EXISTS idx_task_notes_task_id ON task_notes(task_id);
+	CREATE INDEX IF NOT EXISTS idx_goal_projects_goal_id ON goal_projects(goal_id);
+	CREATE INDEX IF NOT EXISTS idx_goal_projects_project_id ON goal_projects(project_id);
+	CREATE INDEX IF NOT EXISTS idx_problem_projects_problem_id ON problem_projects(problem_id);
+	CREATE INDEX IF NOT EXISTS idx_problem_projects_project_id ON problem_projects(project_id);
 	`
 
 	_, err := d.db.Exec(indexes)
@@ -509,10 +555,10 @@ func (d *Database) UpdateTask(id int64, title, description, status, priority, ta
 
 // Problem operations
 
-func (d *Database) CreateProblem(projectID *int64, taskID *int64, title, description, status string) (*Problem, error) {
+func (d *Database) CreateProblem(projectID *int64, taskID *int64, title, description, status, assignee string) (*Problem, error) {
 	result, err := d.db.Exec(
-		"INSERT INTO problems (project_id, task_id, title, description, status) VALUES (?, ?, ?, ?, ?)",
-		projectID, taskID, title, description, status,
+		"INSERT INTO problems (project_id, task_id, title, description, status, assignee) VALUES (?, ?, ?, ?, ?, ?)",
+		projectID, taskID, title, description, status, assignee,
 	)
 	if err != nil {
 		return nil, err
@@ -530,10 +576,11 @@ func (d *Database) GetProblem(id int64) (*Problem, error) {
 	var p Problem
 	var projectID sql.NullInt64
 	var taskID sql.NullInt64
+	var assignee sql.NullString
 	err := d.db.QueryRow(
-		"SELECT id, project_id, task_id, title, description, status, created_at, updated_at FROM problems WHERE id = ?",
+		"SELECT id, project_id, task_id, title, description, status, COALESCE(assignee, ''), created_at, updated_at FROM problems WHERE id = ?",
 		id,
-	).Scan(&p.ID, &projectID, &taskID, &p.Title, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &projectID, &taskID, &p.Title, &p.Description, &p.Status, &assignee, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -543,11 +590,14 @@ func (d *Database) GetProblem(id int64) (*Problem, error) {
 	if taskID.Valid {
 		p.TaskID = &taskID.Int64
 	}
+	if assignee.Valid {
+		p.Assignee = assignee.String
+	}
 	return &p, nil
 }
 
-func (d *Database) ListProblems(projectID *int64, taskID *int64, status *string) ([]*Problem, error) {
-	query := "SELECT id, project_id, task_id, title, description, status, created_at, updated_at FROM problems WHERE 1=1"
+func (d *Database) ListProblems(projectID *int64, taskID *int64, status *string, assignee *string) ([]*Problem, error) {
+	query := "SELECT id, project_id, task_id, title, description, status, COALESCE(assignee, ''), created_at, updated_at FROM problems WHERE 1=1"
 	args := []interface{}{}
 
 	if projectID != nil {
@@ -565,6 +615,11 @@ func (d *Database) ListProblems(projectID *int64, taskID *int64, status *string)
 		args = append(args, *status)
 	}
 
+	if assignee != nil {
+		query += " AND assignee = ?"
+		args = append(args, *assignee)
+	}
+
 	query += " ORDER BY updated_at DESC"
 
 	rows, err := d.db.Query(query, args...)
@@ -578,7 +633,8 @@ func (d *Database) ListProblems(projectID *int64, taskID *int64, status *string)
 		var p Problem
 		var projectID sql.NullInt64
 		var taskID sql.NullInt64
-		if err := rows.Scan(&p.ID, &projectID, &taskID, &p.Title, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		var assignee sql.NullString
+		if err := rows.Scan(&p.ID, &projectID, &taskID, &p.Title, &p.Description, &p.Status, &assignee, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if projectID.Valid {
@@ -587,12 +643,15 @@ func (d *Database) ListProblems(projectID *int64, taskID *int64, status *string)
 		if taskID.Valid {
 			p.TaskID = &taskID.Int64
 		}
+		if assignee.Valid {
+			p.Assignee = assignee.String
+		}
 		problems = append(problems, &p)
 	}
 	return problems, rows.Err()
 }
 
-func (d *Database) UpdateProblem(id int64, title, description, status *string) (*Problem, error) {
+func (d *Database) UpdateProblem(id int64, title, description, status, assignee *string) (*Problem, error) {
 	updates := []string{}
 	args := []interface{}{}
 
@@ -607,6 +666,10 @@ func (d *Database) UpdateProblem(id int64, title, description, status *string) (
 	if status != nil {
 		updates = append(updates, "status = ?")
 		args = append(args, *status)
+	}
+	if assignee != nil {
+		updates = append(updates, "assignee = ?")
+		args = append(args, *assignee)
 	}
 
 	if len(updates) == 0 {
@@ -775,13 +838,13 @@ func (d *Database) DeleteOutcome(id int64) error {
 
 // Goal operations
 
-func (d *Database) CreateGoal(projectID *int64, taskID *int64, title, description, goalType string) (*Goal, error) {
+func (d *Database) CreateGoal(projectID *int64, taskID *int64, title, description, goalType, assignee string) (*Goal, error) {
 	if goalType == "" {
 		goalType = "short_term"
 	}
 	result, err := d.db.Exec(
-		"INSERT INTO goals (project_id, task_id, title, description, goal_type) VALUES (?, ?, ?, ?, ?)",
-		projectID, taskID, title, description, goalType,
+		"INSERT INTO goals (project_id, task_id, title, description, goal_type, assignee) VALUES (?, ?, ?, ?, ?, ?)",
+		projectID, taskID, title, description, goalType, assignee,
 	)
 	if err != nil {
 		return nil, err
@@ -799,10 +862,11 @@ func (d *Database) GetGoal(id int64) (*Goal, error) {
 	var g Goal
 	var projectID sql.NullInt64
 	var taskID sql.NullInt64
+	var assignee sql.NullString
 	err := d.db.QueryRow(
-		"SELECT id, project_id, task_id, title, description, goal_type, created_at, updated_at FROM goals WHERE id = ?",
+		"SELECT id, project_id, task_id, title, description, goal_type, COALESCE(assignee, ''), created_at, updated_at FROM goals WHERE id = ?",
 		id,
-	).Scan(&g.ID, &projectID, &taskID, &g.Title, &g.Description, &g.GoalType, &g.CreatedAt, &g.UpdatedAt)
+	).Scan(&g.ID, &projectID, &taskID, &g.Title, &g.Description, &g.GoalType, &assignee, &g.CreatedAt, &g.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -812,11 +876,14 @@ func (d *Database) GetGoal(id int64) (*Goal, error) {
 	if taskID.Valid {
 		g.TaskID = &taskID.Int64
 	}
+	if assignee.Valid {
+		g.Assignee = assignee.String
+	}
 	return &g, nil
 }
 
-func (d *Database) ListGoals(projectID *int64, taskID *int64, goalType *string) ([]*Goal, error) {
-	query := "SELECT id, project_id, task_id, title, description, goal_type, created_at, updated_at FROM goals WHERE 1=1"
+func (d *Database) ListGoals(projectID *int64, taskID *int64, goalType *string, assignee *string) ([]*Goal, error) {
+	query := "SELECT id, project_id, task_id, title, description, goal_type, COALESCE(assignee, ''), created_at, updated_at FROM goals WHERE 1=1"
 	args := []interface{}{}
 
 	if projectID != nil {
@@ -834,6 +901,11 @@ func (d *Database) ListGoals(projectID *int64, taskID *int64, goalType *string) 
 		args = append(args, *goalType)
 	}
 
+	if assignee != nil {
+		query += " AND assignee = ?"
+		args = append(args, *assignee)
+	}
+
 	query += " ORDER BY updated_at DESC"
 
 	rows, err := d.db.Query(query, args...)
@@ -847,7 +919,8 @@ func (d *Database) ListGoals(projectID *int64, taskID *int64, goalType *string) 
 		var g Goal
 		var projectID sql.NullInt64
 		var taskID sql.NullInt64
-		if err := rows.Scan(&g.ID, &projectID, &taskID, &g.Title, &g.Description, &g.GoalType, &g.CreatedAt, &g.UpdatedAt); err != nil {
+		var assignee sql.NullString
+		if err := rows.Scan(&g.ID, &projectID, &taskID, &g.Title, &g.Description, &g.GoalType, &assignee, &g.CreatedAt, &g.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if projectID.Valid {
@@ -856,12 +929,15 @@ func (d *Database) ListGoals(projectID *int64, taskID *int64, goalType *string) 
 		if taskID.Valid {
 			g.TaskID = &taskID.Int64
 		}
+		if assignee.Valid {
+			g.Assignee = assignee.String
+		}
 		goals = append(goals, &g)
 	}
 	return goals, rows.Err()
 }
 
-func (d *Database) UpdateGoal(id int64, title, description, goalType *string) (*Goal, error) {
+func (d *Database) UpdateGoal(id int64, title, description, goalType, assignee *string) (*Goal, error) {
 	updates := []string{}
 	args := []interface{}{}
 
@@ -876,6 +952,10 @@ func (d *Database) UpdateGoal(id int64, title, description, goalType *string) (*
 	if goalType != nil {
 		updates = append(updates, "goal_type = ?")
 		args = append(args, *goalType)
+	}
+	if assignee != nil {
+		updates = append(updates, "assignee = ?")
+		args = append(args, *assignee)
 	}
 
 	if len(updates) == 0 {
@@ -911,6 +991,182 @@ func (d *Database) DeleteGoal(id int64) error {
 		return fmt.Errorf("goal with ID %d not found", id)
 	}
 	return nil
+}
+
+// Goal-Project linkage operations (many-to-many)
+
+func (d *Database) LinkGoalToProject(goalID, projectID int64) error {
+	_, err := d.db.Exec(
+		"INSERT OR IGNORE INTO goal_projects (goal_id, project_id) VALUES (?, ?)",
+		goalID, projectID,
+	)
+	return err
+}
+
+func (d *Database) UnlinkGoalFromProject(goalID, projectID int64) error {
+	result, err := d.db.Exec(
+		"DELETE FROM goal_projects WHERE goal_id = ? AND project_id = ?",
+		goalID, projectID,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("linkage between goal %d and project %d not found", goalID, projectID)
+	}
+	return nil
+}
+
+func (d *Database) GetGoalProjects(goalID int64) ([]*Project, error) {
+	rows, err := d.db.Query(`
+		SELECT p.id, p.name, p.description, COALESCE(p.external_link, ''), p.created_at, p.updated_at, COALESCE(p.status, 'active')
+		FROM projects p
+		INNER JOIN goal_projects gp ON p.id = gp.project_id
+		WHERE gp.goal_id = ?
+		ORDER BY p.name
+	`, goalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*Project
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt, &p.Status); err != nil {
+			return nil, err
+		}
+		projects = append(projects, &p)
+	}
+	return projects, rows.Err()
+}
+
+func (d *Database) GetProjectGoals(projectID int64) ([]*Goal, error) {
+	rows, err := d.db.Query(`
+		SELECT g.id, g.project_id, g.task_id, g.title, g.description, g.goal_type, COALESCE(g.assignee, ''), g.created_at, g.updated_at
+		FROM goals g
+		INNER JOIN goal_projects gp ON g.id = gp.goal_id
+		WHERE gp.project_id = ?
+		ORDER BY g.updated_at DESC
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var goals []*Goal
+	for rows.Next() {
+		var g Goal
+		var projectID sql.NullInt64
+		var taskID sql.NullInt64
+		var assignee sql.NullString
+		if err := rows.Scan(&g.ID, &projectID, &taskID, &g.Title, &g.Description, &g.GoalType, &assignee, &g.CreatedAt, &g.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if projectID.Valid {
+			g.ProjectID = &projectID.Int64
+		}
+		if taskID.Valid {
+			g.TaskID = &taskID.Int64
+		}
+		if assignee.Valid {
+			g.Assignee = assignee.String
+		}
+		goals = append(goals, &g)
+	}
+	return goals, rows.Err()
+}
+
+// Problem-Project linkage operations (many-to-many)
+
+func (d *Database) LinkProblemToProject(problemID, projectID int64) error {
+	_, err := d.db.Exec(
+		"INSERT OR IGNORE INTO problem_projects (problem_id, project_id) VALUES (?, ?)",
+		problemID, projectID,
+	)
+	return err
+}
+
+func (d *Database) UnlinkProblemFromProject(problemID, projectID int64) error {
+	result, err := d.db.Exec(
+		"DELETE FROM problem_projects WHERE problem_id = ? AND project_id = ?",
+		problemID, projectID,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("linkage between problem %d and project %d not found", problemID, projectID)
+	}
+	return nil
+}
+
+func (d *Database) GetProblemProjects(problemID int64) ([]*Project, error) {
+	rows, err := d.db.Query(`
+		SELECT p.id, p.name, p.description, COALESCE(p.external_link, ''), p.created_at, p.updated_at, COALESCE(p.status, 'active')
+		FROM projects p
+		INNER JOIN problem_projects pp ON p.id = pp.project_id
+		WHERE pp.problem_id = ?
+		ORDER BY p.name
+	`, problemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*Project
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.ExternalLink, &p.CreatedAt, &p.UpdatedAt, &p.Status); err != nil {
+			return nil, err
+		}
+		projects = append(projects, &p)
+	}
+	return projects, rows.Err()
+}
+
+func (d *Database) GetProjectProblems(projectID int64) ([]*Problem, error) {
+	rows, err := d.db.Query(`
+		SELECT p.id, p.project_id, p.task_id, p.title, p.description, p.status, COALESCE(p.assignee, ''), p.created_at, p.updated_at
+		FROM problems p
+		INNER JOIN problem_projects pp ON p.id = pp.problem_id
+		WHERE pp.project_id = ?
+		ORDER BY p.updated_at DESC
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var problems []*Problem
+	for rows.Next() {
+		var p Problem
+		var projectID sql.NullInt64
+		var taskID sql.NullInt64
+		var assignee sql.NullString
+		if err := rows.Scan(&p.ID, &projectID, &taskID, &p.Title, &p.Description, &p.Status, &assignee, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if projectID.Valid {
+			p.ProjectID = &projectID.Int64
+		}
+		if taskID.Valid {
+			p.TaskID = &taskID.Int64
+		}
+		if assignee.Valid {
+			p.Assignee = assignee.String
+		}
+		problems = append(problems, &p)
+	}
+	return problems, rows.Err()
 }
 
 // Task note operations
