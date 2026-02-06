@@ -9,6 +9,7 @@ Loom is a web-based project and task management application that efficiently hel
 - **Problem Tracking**: Capture problems linked to projects and optionally to specific tasks
 - **Goal Tracking**: Capture goals with optional project/task links and goal types
 - **Outcome Tracking**: Track outcomes linked to projects and optionally to tasks for progress over time
+- **Voice Notifications**: Text-to-speech capability for LLM tools to send voice messages to users
 - **Web Dashboard**: Modern, responsive web interface with real-time updates via Server-Sent Events (SSE)
 - **REST API**: Full REST API for programmatic access to all features
 - **Local Storage**: All data stored in a local SQLite database (default: `~/.loom/loom.db`)
@@ -18,6 +19,7 @@ Loom is a web-based project and task management application that efficiently hel
 ### Prerequisites
 
 - Go 1.23 or later
+- Node.js and npm (optional, only needed to install echogarden for voice notifications)
 
 ### Build from Source
 
@@ -32,6 +34,9 @@ go build -o loom
 ```bash
 # Move the binary to your PATH
 sudo mv loom /usr/local/bin/
+
+# Install echogarden for voice notifications (optional)
+npm install -g echogarden
 ```
 
 ## Configuration
@@ -92,9 +97,29 @@ Loom provides a REST API for programmatic access to all features. All endpoints 
 - `GET /api/problems?project_id=1&task_id=2&status=open` - List problems with optional filters
 - `GET /api/outcomes?project_id=1&task_id=2&status=completed` - List outcomes with optional filters
 - `GET /api/goals?project_id=1&task_id=2&goal_type=short_term` - List goals with optional filters
+- `POST /api/voice` - Text-to-speech endpoint (accepts JSON with `text` field, returns WAV audio)
 - `GET /events` - Server-Sent Events (SSE) endpoint for real-time updates
 
 All API endpoints include CORS headers for cross-origin access.
+
+### Voice Notifications
+
+LLM tools can send voice messages to users through the `/api/voice` endpoint. The dashboard includes a speaker icon in the navbar that allows users to mute/unmute voice notifications. Voice state persists across sessions.
+
+Example usage from JavaScript:
+```javascript
+// Use the built-in speakText function in the dashboard
+speakText("Your task has been completed successfully");
+```
+
+Example usage via API:
+```bash
+curl -X POST http://localhost:8080/api/voice \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Hello, your task is complete"}'
+```
+
+The voice feature uses echogarden with a British English voice. Users can toggle voice notifications using the speaker icon (🔊/🔇) in the dashboard navbar.
 
 ## Development
 
