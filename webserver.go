@@ -46,7 +46,7 @@ func (ws *WebServer) Start() error {
 	apiMux.HandleFunc("/api/voice", ws.handleVoice)
 	apiMux.HandleFunc("/events", ws.handleSSE)
 	if ws.mcpHandler != nil {
-		apiMux.Handle("/mcp", ws.mcpHandler)
+		apiMux.Handle("/sse", ws.mcpHandler)
 	}
 
 	// Website server mux - serves the dashboard UI

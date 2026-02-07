@@ -28,7 +28,7 @@ func NewMCPServer(database *Database) *server.MCPServer {
 }
 
 // NewMCPHandler creates a new MCP Streamable HTTP handler that can be
-// mounted on an existing HTTP server mux at the "/mcp" path.
+// mounted on an existing HTTP server mux at the "/sse" path.
 func NewMCPHandler(mcpServer *server.MCPServer) *server.StreamableHTTPServer {
 	return server.NewStreamableHTTPServer(mcpServer)
 }

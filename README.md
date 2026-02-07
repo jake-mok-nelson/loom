@@ -109,13 +109,13 @@ All API endpoints include CORS headers for cross-origin access.
 
 ## MCP Server (Streamable HTTP)
 
-Loom implements the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) using the **Streamable HTTP** transport (spec version `2025-03-26`). This replaces the legacy HTTP+SSE transport and provides a single endpoint at `/mcp` that supports both JSON and streaming responses.
+Loom implements the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) using the **Streamable HTTP** transport (spec version `2025-03-26`). This replaces the legacy HTTP+SSE transport and provides a single endpoint at `/sse` that supports both JSON and streaming responses.
 
 ### MCP Endpoint
 
-- `POST /mcp` - Send JSON-RPC 2.0 requests (initialize, tools/list, tools/call, etc.)
-- `GET /mcp` - Open a streaming connection for server-to-client notifications
-- `DELETE /mcp` - Terminate a session
+- `POST /sse` - Send JSON-RPC 2.0 requests (initialize, tools/list, tools/call, etc.)
+- `GET /sse` - Open a streaming connection for server-to-client notifications
+- `DELETE /sse` - Terminate a session
 
 ### Available MCP Tools
 
@@ -171,7 +171,7 @@ To connect an MCP client (e.g., Claude Desktop) to Loom, use the Streamable HTTP
   "mcpServers": {
     "loom": {
       "type": "streamable-http",
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:8080/sse"
     }
   }
 }

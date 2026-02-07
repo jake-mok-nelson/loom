@@ -38,7 +38,7 @@ func main() {
 	mcpHandler := NewMCPHandler(mcpServer)
 
 	// Start the API (with MCP) and dashboard servers
-	log.Printf("Loom starting - API at http://%s, MCP at http://%s/mcp, Dashboard at http://%s, database at: %s", *webAddr, *webAddr, *dashboardAddr, dbPath)
+	log.Printf("Loom starting - API at http://%s, MCP at http://%s/sse, Dashboard at http://%s, database at: %s", *webAddr, *webAddr, *dashboardAddr, dbPath)
 	ws := NewWebServer(db, *webAddr, *dashboardAddr, mcpHandler)
 	if err := ws.Start(); err != nil {
 		log.Fatal("Failed to start server:", err)
