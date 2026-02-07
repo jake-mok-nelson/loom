@@ -199,22 +199,52 @@ To connect an MCP client (e.g., Claude Desktop) to Loom, use the Streamable HTTP
 
 ### Voice Notifications
 
-LLM tools can send voice messages to users through the `/api/voice` endpoint. The dashboard includes a speaker icon in the navbar that allows users to mute/unmute voice notifications. Voice state persists across sessions.
+Loom provides text-to-speech capabilities for voice announcements when tasks, problems, goals, and outcomes are created via MCP. The dashboard includes a speaker icon in the navbar (🔊/🔇) that allows users to mute/unmute voice notifications. Voice state persists across sessions.
 
-Example usage from JavaScript:
-```javascript
-// Use the built-in speakText function in the dashboard
-speakText("Your task has been completed successfully");
+#### Setting up Kokoro TTS
+
+Loom uses [echogarden](https://github.com/ampleforth/echogarden) with the **Kokoro** offline TTS engine for high-quality, natural-sounding voice synthesis.
+
+##### Installation
+
+1. **Install echogarden** (requires Node.js 18+):
+```bash
+npm install -g echogarden
 ```
 
-Example usage via API:
+2. **Download Kokoro models** (optional, models download automatically on first use):
+The Kokoro models will be automatically downloaded on the first call to `/api/voice`. The download includes:
+   - `kokoro-82m-v1.0-fp32` (301MB) - Main model
+   - `kokoro-82m-v1.0-voices` (26MB) - Voice presets
+
+Models are cached in `~/.cache/echogarden/` for subsequent uses.
+
+##### Configuration
+
+Loom is pre-configured to use Kokoro. No additional setup is needed. The voice endpoint uses:
+- **Engine**: Kokoro (offline, no API key required)
+- **Quality**: 24kHz sample rate, natural-sounding voices
+- **Voice**: Automatically selects appropriate voice for detected language
+
+##### Testing Voice Synthesis
+
+Test the voice endpoint manually:
 ```bash
 curl -X POST http://localhost:8080/api/voice \
   -H "Content-Type: application/json" \
-  -d '{"text":"Hello, your task is complete"}'
+  -d '{"text":"Hello from Kokoro"}' \
+  -o output.wav && open output.wav
 ```
 
-The voice feature uses echogarden with a British English voice. Users can toggle voice notifications using the speaker icon (🔊/🔇) in the dashboard navbar.
+##### Usage
+
+Voice announcements are automatically sent to the dashboard via SSE when items are created:
+- When you create a task via MCP: "Task {title} created"
+- When you create a problem via MCP: "Problem {title} created"
+- When you create a goal via MCP: "Goal {title} created"
+- When you create an outcome via MCP: "Outcome {title} created"
+
+Users can toggle voice notifications using the speaker icon (🔊/🔇) in the dashboard navbar.
 
 ## Development
 

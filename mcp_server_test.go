@@ -26,7 +26,8 @@ func setupTestMCPServer(t *testing.T) (*server.MCPServer, *Database, func()) {
 		t.Fatalf("Failed to create database: %v", err)
 	}
 
-	s := NewMCPServer(testDB)
+	// Pass a no-op announce function for testing
+	s := NewMCPServer(testDB, func(string) {})
 
 	cleanup := func() {
 		testDB.Close()

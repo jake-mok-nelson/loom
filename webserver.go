@@ -372,11 +372,10 @@ func (ws *WebServer) handleVoice(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Use echogarden to synthesize speech
-	// Note: Kokoro is the preferred engine but requires model download from HuggingFace
-	// Using espeak as a working alternative with British English voice
+	// Use echogarden to synthesize speech with Kokoro offline TTS
+	// Kokoro provides higher quality natural-sounding voices than espeak
 	// The text is passed as a command argument - echogarden handles escaping internally
-	cmd := exec.Command("echogarden", "speak", req.Text, tmpFilePath, "--engine=espeak", "--language=en-GB")
+	cmd := exec.Command("echogarden", "speak", req.Text, tmpFilePath, "--engine=kokoro")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("TTS generation failed: %v\nOutput: %s", err, string(output))
@@ -1698,9 +1697,11 @@ const dashboardHTML = `<!DOCTYPE html>
 
         async function speakText(text) {
             if (voiceMuted) {
+                console.log('Voice muted, skipping announcement:', text);
                 return;
             }
 
+            console.log('Speaking text:', text);
             try {
                 const response = await fetch(API_BASE_URL + '/api/voice', {
                     method: 'POST',
@@ -1716,10 +1717,12 @@ const dashboardHTML = `<!DOCTYPE html>
                 }
 
                 const audioBlob = await response.blob();
+                console.log('Audio blob received:', audioBlob.size, 'bytes');
                 const audioUrl = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl);
-                
+
                 audio.onended = () => {
+                    console.log('Audio playback finished');
                     URL.revokeObjectURL(audioUrl);
                 };
 
@@ -1728,6 +1731,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     URL.revokeObjectURL(audioUrl);
                 };
 
+                console.log('Playing audio...');
                 await audio.play();
             } catch (error) {
                 console.error('Failed to play voice:', error);
@@ -1762,6 +1766,16 @@ const dashboardHTML = `<!DOCTYPE html>
 
             eventSource.addEventListener('heartbeat', () => {
                 // Keep-alive heartbeat
+            });
+
+            eventSource.addEventListener('voice', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Voice event received:', data);
+                    speakText(data.text);
+                } catch (error) {
+                    console.error('Failed to parse voice event:', error);
+                }
             });
         }
 

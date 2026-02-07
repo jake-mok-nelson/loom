@@ -10,19 +10,19 @@ import (
 )
 
 // NewMCPServer creates a new MCP server with all Loom tools registered.
-func NewMCPServer(database *Database) *server.MCPServer {
+func NewMCPServer(database *Database, announceFunc func(string)) *server.MCPServer {
 	s := server.NewMCPServer(
 		"Loom",
 		"1.0.0",
 		server.WithToolCapabilities(true),
 	)
 
-	registerProjectTools(s, database)
-	registerTaskTools(s, database)
-	registerProblemTools(s, database)
-	registerOutcomeTools(s, database)
-	registerGoalTools(s, database)
-	registerTaskNoteTools(s, database)
+	registerProjectTools(s, database, announceFunc)
+	registerTaskTools(s, database, announceFunc)
+	registerProblemTools(s, database, announceFunc)
+	registerOutcomeTools(s, database, announceFunc)
+	registerGoalTools(s, database, announceFunc)
+	registerTaskNoteTools(s, database, announceFunc)
 
 	return s
 }
@@ -35,7 +35,7 @@ func NewMCPHandler(mcpServer *server.MCPServer) *server.StreamableHTTPServer {
 
 // --- Project Tools ---
 
-func registerProjectTools(s *server.MCPServer, db *Database) {
+func registerProjectTools(s *server.MCPServer, db *Database, announceFunc func(string)) {
 	s.AddTool(
 		mcp.NewTool("create_project",
 			mcp.WithDescription("Create a new project in Loom"),
@@ -57,6 +57,7 @@ func registerProjectTools(s *server.MCPServer, db *Database) {
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create project: %v", err)), nil
 			}
+			announceFunc(fmt.Sprintf("Project %s created", name))
 			return jsonToolResult(project)
 		},
 	)
@@ -142,7 +143,7 @@ func registerProjectTools(s *server.MCPServer, db *Database) {
 
 // --- Task Tools ---
 
-func registerTaskTools(s *server.MCPServer, db *Database) {
+func registerTaskTools(s *server.MCPServer, db *Database, announceFunc func(string)) {
 	s.AddTool(
 		mcp.NewTool("create_task",
 			mcp.WithDescription("Create a new task in a project"),
@@ -173,6 +174,7 @@ func registerTaskTools(s *server.MCPServer, db *Database) {
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create task: %v", err)), nil
 			}
+			announceFunc(fmt.Sprintf("Task %s created", title))
 			return jsonToolResult(task)
 		},
 	)
@@ -269,7 +271,7 @@ func registerTaskTools(s *server.MCPServer, db *Database) {
 
 // --- Problem Tools ---
 
-func registerProblemTools(s *server.MCPServer, db *Database) {
+func registerProblemTools(s *server.MCPServer, db *Database, announceFunc func(string)) {
 	s.AddTool(
 		mcp.NewTool("create_problem",
 			mcp.WithDescription("Create a new problem with optional project or task links and assignee"),
@@ -295,6 +297,7 @@ func registerProblemTools(s *server.MCPServer, db *Database) {
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create problem: %v", err)), nil
 			}
+			announceFunc(fmt.Sprintf("Problem %s created", title))
 			return jsonToolResult(problem)
 		},
 	)
@@ -475,7 +478,7 @@ func registerProblemTools(s *server.MCPServer, db *Database) {
 
 // --- Outcome Tools ---
 
-func registerOutcomeTools(s *server.MCPServer, db *Database) {
+func registerOutcomeTools(s *server.MCPServer, db *Database, announceFunc func(string)) {
 	s.AddTool(
 		mcp.NewTool("create_outcome",
 			mcp.WithDescription("Create a new outcome connected to a project and optionally a task"),
@@ -502,6 +505,7 @@ func registerOutcomeTools(s *server.MCPServer, db *Database) {
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create outcome: %v", err)), nil
 			}
+			announceFunc(fmt.Sprintf("Outcome %s created", title))
 			return jsonToolResult(outcome)
 		},
 	)
@@ -592,7 +596,7 @@ func registerOutcomeTools(s *server.MCPServer, db *Database) {
 
 // --- Goal Tools ---
 
-func registerGoalTools(s *server.MCPServer, db *Database) {
+func registerGoalTools(s *server.MCPServer, db *Database, announceFunc func(string)) {
 	s.AddTool(
 		mcp.NewTool("create_goal",
 			mcp.WithDescription("Create a goal with optional project or task links and assignee"),
@@ -618,6 +622,7 @@ func registerGoalTools(s *server.MCPServer, db *Database) {
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create goal: %v", err)), nil
 			}
+			announceFunc(fmt.Sprintf("Goal %s created", title))
 			return jsonToolResult(goal)
 		},
 	)
@@ -798,7 +803,7 @@ func registerGoalTools(s *server.MCPServer, db *Database) {
 
 // --- Task Note Tools ---
 
-func registerTaskNoteTools(s *server.MCPServer, db *Database) {
+func registerTaskNoteTools(s *server.MCPServer, db *Database, announceFunc func(string)) {
 	s.AddTool(
 		mcp.NewTool("create_task_note",
 			mcp.WithDescription("Create a note on a task"),
@@ -818,6 +823,7 @@ func registerTaskNoteTools(s *server.MCPServer, db *Database) {
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create task note: %v", err)), nil
 			}
+			announceFunc("Task note created")
 			return jsonToolResult(taskNote)
 		},
 	)

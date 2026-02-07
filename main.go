@@ -33,13 +33,20 @@ func main() {
 	}
 	defer db.Close()
 
-	// Create MCP handler to be mounted on the API server
-	mcpServer := NewMCPServer(db)
-	mcpHandler := NewMCPHandler(mcpServer)
-
 	// Start the API (with MCP) and dashboard servers
 	log.Printf("Loom starting - API at http://%s, MCP at http://%s/sse, Dashboard at http://%s, database at: %s", *webAddr, *webAddr, *dashboardAddr, dbPath)
-	ws := NewWebServer(db, *webAddr, *dashboardAddr, mcpHandler)
+	ws := NewWebServer(db, *webAddr, *dashboardAddr, nil)
+
+	// Create announce function that broadcasts voice events to SSE clients
+	announceFunc := func(text string) {
+		ws.broadcast("voice", map[string]string{"text": text})
+	}
+
+	// Create MCP handler to be mounted on the API server
+	mcpServer := NewMCPServer(db, announceFunc)
+	mcpHandler := NewMCPHandler(mcpServer)
+	ws.mcpHandler = mcpHandler
+
 	if err := ws.Start(); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
