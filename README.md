@@ -75,6 +75,26 @@ The API, SSE, and MCP Streamable HTTP endpoints are all available at http://loca
 
 You can also set the `LOOM_DB_PATH` environment variable to use a custom database location.
 
+## Architecture: REST API vs MCP
+
+Loom exposes two complementary interfaces on the same port, each serving a different audience:
+
+| | REST API (`/api/*`) | MCP (`/sse`) |
+|---|---|---|
+| **Consumer** | Web dashboard, scripts, HTTP clients | LLM applications (Claude Desktop, etc.) |
+| **Protocol** | Standard REST (JSON over HTTP) | JSON-RPC 2.0 over Streamable HTTP |
+| **Capabilities** | **Read-only** — query projects, tasks, problems, outcomes, goals | **Full CRUD** — create, read, update, delete, and link/unlink all entities |
+| **Real-time** | `GET /events` pushes SSE updates to the dashboard | `GET /sse` streams MCP notifications to LLM clients |
+| **Use case** | Display data in the browser dashboard | Let AI agents manage projects programmatically |
+
+### Why both?
+
+- **The REST API powers the dashboard.** The web UI needs simple, fast GET endpoints to fetch and display data, and an SSE stream (`/events`) to refresh automatically when data changes. It doesn't need write access because users interact through their LLM tool, not through the dashboard directly.
+
+- **MCP powers LLM tool integration.** AI agents (like Claude) need a standardized protocol to discover available tools and execute them. MCP provides this via JSON-RPC with full create/read/update/delete capabilities across all entity types. When an MCP tool modifies data, the dashboard receives a real-time refresh event through the REST SSE stream.
+
+Together, the two interfaces form a loop: **LLM agents write data through MCP → the dashboard reads and displays it through the REST API → changes appear in real time via SSE.**
+
 ## Web Dashboard
 
 Loom provides a reactive web dashboard for visualizing and managing your projects and tasks. The dashboard provides real-time updates via Server-Sent Events (SSE) and a modern, desktop-optimized interface.
