@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "loom": {
-      "command": "loom",
-      "args": ["--web"],
-      "env": {}
+      "type": "streamable-http",
+      "url": "http://localhost:8080/sse"
     }
   }
 }

@@ -1,0 +1,939 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+)
+
+// NewMCPServer creates a new MCP server with all Loom tools registered.
+func NewMCPServer(database *Database) *server.MCPServer {
+	s := server.NewMCPServer(
+		"Loom",
+		"1.0.0",
+		server.WithToolCapabilities(true),
+	)
+
+	registerProjectTools(s, database)
+	registerTaskTools(s, database)
+	registerProblemTools(s, database)
+	registerOutcomeTools(s, database)
+	registerGoalTools(s, database)
+	registerTaskNoteTools(s, database)
+
+	return s
+}
+
+// NewMCPHandler creates a new MCP Streamable HTTP handler that can be
+// mounted on an existing HTTP server mux at the "/sse" path.
+func NewMCPHandler(mcpServer *server.MCPServer) *server.StreamableHTTPServer {
+	return server.NewStreamableHTTPServer(mcpServer)
+}
+
+// --- Project Tools ---
+
+func registerProjectTools(s *server.MCPServer, db *Database) {
+	s.AddTool(
+		mcp.NewTool("create_project",
+			mcp.WithDescription("Create a new project in Loom"),
+			mcp.WithString("name", mcp.Required(), mcp.Description("Project name")),
+			mcp.WithString("description", mcp.Description("Project description")),
+			mcp.WithString("status", mcp.Description("Project status (e.g. active, planning, on_hold, completed, archived)")),
+			mcp.WithString("external_link", mcp.Description("External link URL")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name, err := req.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description := req.GetString("description", "")
+			status := req.GetString("status", "")
+			externalLink := req.GetString("external_link", "")
+
+			project, err := db.CreateProject(name, description, status, externalLink)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create project: %v", err)), nil
+			}
+			return jsonToolResult(project)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("list_projects",
+			mcp.WithDescription("List all projects in Loom"),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projects, err := db.ListProjects()
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %v", err)), nil
+			}
+			if projects == nil {
+				projects = []*Project{}
+			}
+			return jsonToolResult(projects)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_project",
+			mcp.WithDescription("Get details of a specific project"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			project, err := db.GetProject(int64(id))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get project: %v", err)), nil
+			}
+			return jsonToolResult(project)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("update_project",
+			mcp.WithDescription("Update an existing project"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Project ID")),
+			mcp.WithString("name", mcp.Description("New project name")),
+			mcp.WithString("description", mcp.Description("New project description")),
+			mcp.WithString("status", mcp.Description("New project status")),
+			mcp.WithString("external_link", mcp.Description("New external link URL")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			name := optionalString(req, "name")
+			description := optionalString(req, "description")
+			status := optionalString(req, "status")
+			externalLink := optionalString(req, "external_link")
+
+			project, err := db.UpdateProject(int64(id), name, description, status, externalLink)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update project: %v", err)), nil
+			}
+			return jsonToolResult(project)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("delete_project",
+			mcp.WithDescription("Delete a project and all its tasks"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.DeleteProject(int64(id)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete project: %v", err)), nil
+			}
+			return mcp.NewToolResultText("project deleted successfully"), nil
+		},
+	)
+}
+
+// --- Task Tools ---
+
+func registerTaskTools(s *server.MCPServer, db *Database) {
+	s.AddTool(
+		mcp.NewTool("create_task",
+			mcp.WithDescription("Create a new task in a project"),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Task title")),
+			mcp.WithString("description", mcp.Description("Task description")),
+			mcp.WithString("status", mcp.Description("Task status (e.g. pending, in_progress, completed)")),
+			mcp.WithString("priority", mcp.Description("Task priority (e.g. high, medium, low)")),
+			mcp.WithString("task_type", mcp.Description("Task type (e.g. feature, bugfix, chore)")),
+			mcp.WithString("external_link", mcp.Description("External link URL")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := req.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description := req.GetString("description", "")
+			status := req.GetString("status", "")
+			priority := req.GetString("priority", "")
+			taskType := req.GetString("task_type", "")
+			externalLink := req.GetString("external_link", "")
+
+			task, err := db.CreateTask(int64(projectID), title, description, status, priority, taskType, externalLink)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create task: %v", err)), nil
+			}
+			return jsonToolResult(task)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("list_tasks",
+			mcp.WithDescription("List tasks, optionally filtered by project and/or status"),
+			mcp.WithNumber("project_id", mcp.Description("Filter by project ID")),
+			mcp.WithString("status", mcp.Description("Filter by status")),
+			mcp.WithString("task_type", mcp.Description("Filter by task type")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID := optionalInt64(req, "project_id")
+			status := optionalString(req, "status")
+			taskType := optionalString(req, "task_type")
+
+			tasks, err := db.ListTasks(projectID, status, taskType)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list tasks: %v", err)), nil
+			}
+			if tasks == nil {
+				tasks = []*Task{}
+			}
+			return jsonToolResult(tasks)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_task",
+			mcp.WithDescription("Get details of a specific task"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Task ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			task, err := db.GetTask(int64(id))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get task: %v", err)), nil
+			}
+			return jsonToolResult(task)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("update_task",
+			mcp.WithDescription("Update an existing task"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("title", mcp.Description("New task title")),
+			mcp.WithString("description", mcp.Description("New task description")),
+			mcp.WithString("status", mcp.Description("New task status")),
+			mcp.WithString("priority", mcp.Description("New task priority")),
+			mcp.WithString("task_type", mcp.Description("New task type")),
+			mcp.WithString("external_link", mcp.Description("New external link URL")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title := optionalString(req, "title")
+			description := optionalString(req, "description")
+			status := optionalString(req, "status")
+			priority := optionalString(req, "priority")
+			taskType := optionalString(req, "task_type")
+			externalLink := optionalString(req, "external_link")
+
+			task, err := db.UpdateTask(int64(id), title, description, status, priority, taskType, externalLink)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update task: %v", err)), nil
+			}
+			return jsonToolResult(task)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("delete_task",
+			mcp.WithDescription("Delete a task"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Task ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.DeleteTask(int64(id)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete task: %v", err)), nil
+			}
+			return mcp.NewToolResultText("task deleted successfully"), nil
+		},
+	)
+}
+
+// --- Problem Tools ---
+
+func registerProblemTools(s *server.MCPServer, db *Database) {
+	s.AddTool(
+		mcp.NewTool("create_problem",
+			mcp.WithDescription("Create a new problem with optional project or task links and assignee"),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Problem title")),
+			mcp.WithString("description", mcp.Description("Problem description")),
+			mcp.WithString("status", mcp.Description("Problem status (e.g. open, resolved)")),
+			mcp.WithString("assignee", mcp.Description("Assignee name")),
+			mcp.WithNumber("project_id", mcp.Description("Linked project ID")),
+			mcp.WithNumber("task_id", mcp.Description("Linked task ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			title, err := req.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description := req.GetString("description", "")
+			status := req.GetString("status", "")
+			assignee := req.GetString("assignee", "")
+			projectID := optionalInt64(req, "project_id")
+			taskID := optionalInt64(req, "task_id")
+
+			problem, err := db.CreateProblem(projectID, taskID, title, description, status, assignee)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create problem: %v", err)), nil
+			}
+			return jsonToolResult(problem)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("list_problems",
+			mcp.WithDescription("List problems, optionally filtered by project, task, status, and assignee"),
+			mcp.WithNumber("project_id", mcp.Description("Filter by project ID")),
+			mcp.WithNumber("task_id", mcp.Description("Filter by task ID")),
+			mcp.WithString("status", mcp.Description("Filter by status")),
+			mcp.WithString("assignee", mcp.Description("Filter by assignee")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID := optionalInt64(req, "project_id")
+			taskID := optionalInt64(req, "task_id")
+			status := optionalString(req, "status")
+			assignee := optionalString(req, "assignee")
+
+			problems, err := db.ListProblems(projectID, taskID, status, assignee)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list problems: %v", err)), nil
+			}
+			if problems == nil {
+				problems = []*Problem{}
+			}
+			return jsonToolResult(problems)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_problem",
+			mcp.WithDescription("Get details of a specific problem"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Problem ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			problem, err := db.GetProblem(int64(id))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get problem: %v", err)), nil
+			}
+			return jsonToolResult(problem)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("update_problem",
+			mcp.WithDescription("Update an existing problem including assignee"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Problem ID")),
+			mcp.WithString("title", mcp.Description("New problem title")),
+			mcp.WithString("description", mcp.Description("New problem description")),
+			mcp.WithString("status", mcp.Description("New problem status")),
+			mcp.WithString("assignee", mcp.Description("New assignee")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title := optionalString(req, "title")
+			description := optionalString(req, "description")
+			status := optionalString(req, "status")
+			assignee := optionalString(req, "assignee")
+
+			problem, err := db.UpdateProblem(int64(id), title, description, status, assignee)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update problem: %v", err)), nil
+			}
+			return jsonToolResult(problem)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("delete_problem",
+			mcp.WithDescription("Delete a problem"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Problem ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.DeleteProblem(int64(id)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete problem: %v", err)), nil
+			}
+			return mcp.NewToolResultText("problem deleted successfully"), nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("link_problem_to_project",
+			mcp.WithDescription("Link a problem to an additional project (many-to-many relationship)"),
+			mcp.WithNumber("problem_id", mcp.Required(), mcp.Description("Problem ID")),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			problemID, err := req.RequireFloat("problem_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.LinkProblemToProject(int64(problemID), int64(projectID)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to link problem to project: %v", err)), nil
+			}
+			return mcp.NewToolResultText("problem linked to project successfully"), nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("unlink_problem_from_project",
+			mcp.WithDescription("Remove a problem's link to a project"),
+			mcp.WithNumber("problem_id", mcp.Required(), mcp.Description("Problem ID")),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			problemID, err := req.RequireFloat("problem_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.UnlinkProblemFromProject(int64(problemID), int64(projectID)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to unlink problem from project: %v", err)), nil
+			}
+			return mcp.NewToolResultText("problem unlinked from project successfully"), nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_problem_projects",
+			mcp.WithDescription("Get all projects linked to a problem"),
+			mcp.WithNumber("problem_id", mcp.Required(), mcp.Description("Problem ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			problemID, err := req.RequireFloat("problem_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projects, err := db.GetProblemProjects(int64(problemID))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get problem projects: %v", err)), nil
+			}
+			if projects == nil {
+				projects = []*Project{}
+			}
+			return jsonToolResult(projects)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_project_problems",
+			mcp.WithDescription("Get all problems linked to a project (via junction table)"),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			problems, err := db.GetProjectProblems(int64(projectID))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get project problems: %v", err)), nil
+			}
+			if problems == nil {
+				problems = []*Problem{}
+			}
+			return jsonToolResult(problems)
+		},
+	)
+}
+
+// --- Outcome Tools ---
+
+func registerOutcomeTools(s *server.MCPServer, db *Database) {
+	s.AddTool(
+		mcp.NewTool("create_outcome",
+			mcp.WithDescription("Create a new outcome connected to a project and optionally a task"),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Outcome title")),
+			mcp.WithString("description", mcp.Description("Outcome description")),
+			mcp.WithString("status", mcp.Description("Outcome status (e.g. open, completed)")),
+			mcp.WithNumber("task_id", mcp.Description("Linked task ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := req.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description := req.GetString("description", "")
+			status := req.GetString("status", "")
+			taskID := optionalInt64(req, "task_id")
+
+			outcome, err := db.CreateOutcome(int64(projectID), taskID, title, description, status)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create outcome: %v", err)), nil
+			}
+			return jsonToolResult(outcome)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("list_outcomes",
+			mcp.WithDescription("List outcomes, optionally filtered by project, task, and status"),
+			mcp.WithNumber("project_id", mcp.Description("Filter by project ID")),
+			mcp.WithNumber("task_id", mcp.Description("Filter by task ID")),
+			mcp.WithString("status", mcp.Description("Filter by status")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID := optionalInt64(req, "project_id")
+			taskID := optionalInt64(req, "task_id")
+			status := optionalString(req, "status")
+
+			outcomes, err := db.ListOutcomes(projectID, taskID, status)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list outcomes: %v", err)), nil
+			}
+			if outcomes == nil {
+				outcomes = []*Outcome{}
+			}
+			return jsonToolResult(outcomes)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_outcome",
+			mcp.WithDescription("Get details of a specific outcome"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Outcome ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			outcome, err := db.GetOutcome(int64(id))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get outcome: %v", err)), nil
+			}
+			return jsonToolResult(outcome)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("update_outcome",
+			mcp.WithDescription("Update an existing outcome"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Outcome ID")),
+			mcp.WithString("title", mcp.Description("New outcome title")),
+			mcp.WithString("description", mcp.Description("New outcome description")),
+			mcp.WithString("status", mcp.Description("New outcome status")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title := optionalString(req, "title")
+			description := optionalString(req, "description")
+			status := optionalString(req, "status")
+
+			outcome, err := db.UpdateOutcome(int64(id), title, description, status)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update outcome: %v", err)), nil
+			}
+			return jsonToolResult(outcome)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("delete_outcome",
+			mcp.WithDescription("Delete an outcome"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Outcome ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.DeleteOutcome(int64(id)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete outcome: %v", err)), nil
+			}
+			return mcp.NewToolResultText("outcome deleted successfully"), nil
+		},
+	)
+}
+
+// --- Goal Tools ---
+
+func registerGoalTools(s *server.MCPServer, db *Database) {
+	s.AddTool(
+		mcp.NewTool("create_goal",
+			mcp.WithDescription("Create a goal with optional project or task links and assignee"),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Goal title")),
+			mcp.WithString("description", mcp.Description("Goal description")),
+			mcp.WithString("goal_type", mcp.Description("Goal type (e.g. short_term, career, values, requirement)")),
+			mcp.WithString("assignee", mcp.Description("Assignee name")),
+			mcp.WithNumber("project_id", mcp.Description("Linked project ID")),
+			mcp.WithNumber("task_id", mcp.Description("Linked task ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			title, err := req.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description := req.GetString("description", "")
+			goalType := req.GetString("goal_type", "")
+			assignee := req.GetString("assignee", "")
+			projectID := optionalInt64(req, "project_id")
+			taskID := optionalInt64(req, "task_id")
+
+			goal, err := db.CreateGoal(projectID, taskID, title, description, goalType, assignee)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create goal: %v", err)), nil
+			}
+			return jsonToolResult(goal)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("list_goals",
+			mcp.WithDescription("List goals, optionally filtered by project, task, goal type, and assignee"),
+			mcp.WithNumber("project_id", mcp.Description("Filter by project ID")),
+			mcp.WithNumber("task_id", mcp.Description("Filter by task ID")),
+			mcp.WithString("goal_type", mcp.Description("Filter by goal type")),
+			mcp.WithString("assignee", mcp.Description("Filter by assignee")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID := optionalInt64(req, "project_id")
+			taskID := optionalInt64(req, "task_id")
+			goalType := optionalString(req, "goal_type")
+			assignee := optionalString(req, "assignee")
+
+			goals, err := db.ListGoals(projectID, taskID, goalType, assignee)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list goals: %v", err)), nil
+			}
+			if goals == nil {
+				goals = []*Goal{}
+			}
+			return jsonToolResult(goals)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_goal",
+			mcp.WithDescription("Get details of a specific goal"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Goal ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			goal, err := db.GetGoal(int64(id))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get goal: %v", err)), nil
+			}
+			return jsonToolResult(goal)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("update_goal",
+			mcp.WithDescription("Update an existing goal including assignee"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Goal ID")),
+			mcp.WithString("title", mcp.Description("New goal title")),
+			mcp.WithString("description", mcp.Description("New goal description")),
+			mcp.WithString("goal_type", mcp.Description("New goal type")),
+			mcp.WithString("assignee", mcp.Description("New assignee")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title := optionalString(req, "title")
+			description := optionalString(req, "description")
+			goalType := optionalString(req, "goal_type")
+			assignee := optionalString(req, "assignee")
+
+			goal, err := db.UpdateGoal(int64(id), title, description, goalType, assignee)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update goal: %v", err)), nil
+			}
+			return jsonToolResult(goal)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("delete_goal",
+			mcp.WithDescription("Delete a goal"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Goal ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.DeleteGoal(int64(id)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete goal: %v", err)), nil
+			}
+			return mcp.NewToolResultText("goal deleted successfully"), nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("link_goal_to_project",
+			mcp.WithDescription("Link a goal to an additional project (many-to-many relationship)"),
+			mcp.WithNumber("goal_id", mcp.Required(), mcp.Description("Goal ID")),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			goalID, err := req.RequireFloat("goal_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.LinkGoalToProject(int64(goalID), int64(projectID)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to link goal to project: %v", err)), nil
+			}
+			return mcp.NewToolResultText("goal linked to project successfully"), nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("unlink_goal_from_project",
+			mcp.WithDescription("Remove a goal's link to a project"),
+			mcp.WithNumber("goal_id", mcp.Required(), mcp.Description("Goal ID")),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			goalID, err := req.RequireFloat("goal_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.UnlinkGoalFromProject(int64(goalID), int64(projectID)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to unlink goal from project: %v", err)), nil
+			}
+			return mcp.NewToolResultText("goal unlinked from project successfully"), nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_goal_projects",
+			mcp.WithDescription("Get all projects linked to a goal"),
+			mcp.WithNumber("goal_id", mcp.Required(), mcp.Description("Goal ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			goalID, err := req.RequireFloat("goal_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projects, err := db.GetGoalProjects(int64(goalID))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get goal projects: %v", err)), nil
+			}
+			if projects == nil {
+				projects = []*Project{}
+			}
+			return jsonToolResult(projects)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_project_goals",
+			mcp.WithDescription("Get all goals linked to a project (via junction table)"),
+			mcp.WithNumber("project_id", mcp.Required(), mcp.Description("Project ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			projectID, err := req.RequireFloat("project_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			goals, err := db.GetProjectGoals(int64(projectID))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get project goals: %v", err)), nil
+			}
+			if goals == nil {
+				goals = []*Goal{}
+			}
+			return jsonToolResult(goals)
+		},
+	)
+}
+
+// --- Task Note Tools ---
+
+func registerTaskNoteTools(s *server.MCPServer, db *Database) {
+	s.AddTool(
+		mcp.NewTool("create_task_note",
+			mcp.WithDescription("Create a note on a task"),
+			mcp.WithNumber("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("note", mcp.Required(), mcp.Description("Note content")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			taskID, err := req.RequireFloat("task_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			note, err := req.RequireString("note")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			taskNote, err := db.CreateTaskNote(int64(taskID), note)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create task note: %v", err)), nil
+			}
+			return jsonToolResult(taskNote)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("list_task_notes",
+			mcp.WithDescription("List notes for a task"),
+			mcp.WithNumber("task_id", mcp.Required(), mcp.Description("Task ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			taskID, err := req.RequireFloat("task_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			notes, err := db.ListTaskNotes(int64(taskID))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list task notes: %v", err)), nil
+			}
+			if notes == nil {
+				notes = []*TaskNote{}
+			}
+			return jsonToolResult(notes)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("get_task_note",
+			mcp.WithDescription("Get details of a specific task note"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Task note ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			note, err := db.GetTaskNote(int64(id))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get task note: %v", err)), nil
+			}
+			return jsonToolResult(note)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("update_task_note",
+			mcp.WithDescription("Update an existing task note"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Task note ID")),
+			mcp.WithString("note", mcp.Required(), mcp.Description("Updated note content")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			note, err := req.RequireString("note")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			taskNote, err := db.UpdateTaskNote(int64(id), note)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update task note: %v", err)), nil
+			}
+			return jsonToolResult(taskNote)
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("delete_task_note",
+			mcp.WithDescription("Delete a task note"),
+			mcp.WithNumber("id", mcp.Required(), mcp.Description("Task note ID")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, err := req.RequireFloat("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if err := db.DeleteTaskNote(int64(id)); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete task note: %v", err)), nil
+			}
+			return mcp.NewToolResultText("task note deleted successfully"), nil
+		},
+	)
+}
+
+// --- Helpers ---
+
+// jsonToolResult marshals data to JSON and returns it as a tool result.
+func jsonToolResult(data interface{}) (*mcp.CallToolResult, error) {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal result: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// optionalString returns a pointer to the string value of the given argument,
+// or nil if the argument is not present.
+func optionalString(req mcp.CallToolRequest, key string) *string {
+	args := req.GetArguments()
+	if v, ok := args[key]; ok {
+		if s, ok := v.(string); ok {
+			return &s
+		}
+	}
+	return nil
+}
+
+// optionalInt64 returns a pointer to the int64 value of the given numeric argument,
+// or nil if the argument is not present.
+func optionalInt64(req mcp.CallToolRequest, key string) *int64 {
+	args := req.GetArguments()
+	if v, ok := args[key]; ok {
+		if f, ok := v.(float64); ok {
+			i := int64(f)
+			return &i
+		}
+	}
+	return nil
+}

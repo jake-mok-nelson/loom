@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,39 +17,62 @@ import (
 type WebServer struct {
 	db         *Database
 	addr       string
+	webAddr    string
+	mcpHandler http.Handler
 	clients    map[chan string]bool
 	clientsMux sync.RWMutex
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(db *Database, addr string) *WebServer {
+func NewWebServer(db *Database, addr string, webAddr string, mcpHandler http.Handler) *WebServer {
 	return &WebServer{
-		db:      db,
-		addr:    addr,
-		clients: make(map[chan string]bool),
+		db:         db,
+		addr:       addr,
+		webAddr:    webAddr,
+		mcpHandler: mcpHandler,
+		clients:    make(map[chan string]bool),
 	}
 }
 
-// Start begins the web server
+// Start begins the API and website servers on separate ports
 func (ws *WebServer) Start() error {
-	mux := http.NewServeMux()
+	// API server mux - serves REST API, SSE, and MCP endpoints
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("/api/projects", ws.handleProjects)
+	apiMux.HandleFunc("/api/tasks", ws.handleTasks)
+	apiMux.HandleFunc("/api/problems", ws.handleProblems)
+	apiMux.HandleFunc("/api/outcomes", ws.handleOutcomes)
+	apiMux.HandleFunc("/api/goals", ws.handleGoals)
+	apiMux.HandleFunc("/api/voice", ws.handleVoice)
+	apiMux.HandleFunc("/events", ws.handleSSE)
+	if ws.mcpHandler != nil {
+		apiMux.Handle("/sse", ws.mcpHandler)
+	}
 
-	// Serve the main dashboard
-	mux.HandleFunc("/", ws.handleDashboard)
+	// Website server mux - serves the dashboard UI
+	webMux := http.NewServeMux()
+	webMux.HandleFunc("/", ws.handleDashboard)
 
-	// API endpoints
-	mux.HandleFunc("/api/projects", ws.handleProjects)
-	mux.HandleFunc("/api/tasks", ws.handleTasks)
-	mux.HandleFunc("/api/problems", ws.handleProblems)
-	mux.HandleFunc("/api/outcomes", ws.handleOutcomes)
-	mux.HandleFunc("/api/goals", ws.handleGoals)
-	mux.HandleFunc("/api/voice", ws.handleVoice)
+	errCh := make(chan error, 1)
 
-	// SSE endpoint for real-time updates
-	mux.HandleFunc("/events", ws.handleSSE)
+	// Start the website server in a goroutine
+	go func() {
+		log.Printf("Starting Loom website server at http://%s", ws.webAddr)
+		if err := http.ListenAndServe(ws.webAddr, webMux); err != nil {
+			errCh <- fmt.Errorf("website server failed: %w", err)
+		}
+	}()
 
-	log.Printf("Starting Loom web server at http://%s", ws.addr)
-	return http.ListenAndServe(ws.addr, mux)
+	// Start the API server in a goroutine
+	go func() {
+		log.Printf("Starting Loom API server at http://%s", ws.addr)
+		if err := http.ListenAndServe(ws.addr, apiMux); err != nil {
+			errCh <- fmt.Errorf("API server failed: %w", err)
+		}
+	}()
+
+	// Block until one of the servers fails
+	return <-errCh
 }
 
 // broadcast sends an event to all connected SSE clients
@@ -384,6 +408,21 @@ func (ws *WebServer) handleVoice(w http.ResponseWriter, r *http.Request) {
 	w.Write(audioData)
 }
 
+// apiBaseURL returns the base URL for the API server based on the request host and API address.
+func (ws *WebServer) apiBaseURL(r *http.Request) string {
+	hostname := r.Host
+	// Extract the hostname (without port) from the request
+	if h, _, err := net.SplitHostPort(r.Host); err == nil {
+		hostname = h
+	}
+	// Extract the port from the API address
+	apiPort := ws.addr
+	if _, p, err := net.SplitHostPort(ws.addr); err == nil {
+		apiPort = p
+	}
+	return fmt.Sprintf("http://%s:%s", hostname, apiPort)
+}
+
 // handleDashboard serves the main dashboard HTML
 func (ws *WebServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -392,7 +431,10 @@ func (ws *WebServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(dashboardHTML))
+	apiBase := ws.apiBaseURL(r)
+	// Inject the API base URL as a JavaScript variable before the dashboard script
+	html := fmt.Sprintf(`<script>var API_BASE_URL = %q;</script>`, apiBase) + dashboardHTML
+	w.Write([]byte(html))
 }
 
 const dashboardHTML = `<!DOCTYPE html>
@@ -1660,7 +1702,7 @@ const dashboardHTML = `<!DOCTYPE html>
             }
 
             try {
-                const response = await fetch('/api/voice', {
+                const response = await fetch(API_BASE_URL + '/api/voice', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1698,7 +1740,7 @@ const dashboardHTML = `<!DOCTYPE html>
                 eventSource.close();
             }
 
-            eventSource = new EventSource('/events');
+            eventSource = new EventSource(API_BASE_URL + '/events');
 
             eventSource.onopen = () => {
                 updateConnectionStatus(true);
@@ -1738,11 +1780,11 @@ const dashboardHTML = `<!DOCTYPE html>
         async function refreshData() {
             try {
                 const [projects, tasks, problems, outcomes, goals] = await Promise.all([
-                    fetch('/api/projects').then(r => r.json()),
-                    fetch('/api/tasks').then(r => r.json()),
-                    fetch('/api/problems').then(r => r.json()),
-                    fetch('/api/outcomes').then(r => r.json()),
-                    fetch('/api/goals').then(r => r.json())
+                    fetch(API_BASE_URL + '/api/projects').then(r => r.json()),
+                    fetch(API_BASE_URL + '/api/tasks').then(r => r.json()),
+                    fetch(API_BASE_URL + '/api/problems').then(r => r.json()),
+                    fetch(API_BASE_URL + '/api/outcomes').then(r => r.json()),
+                    fetch(API_BASE_URL + '/api/goals').then(r => r.json())
                 ]);
 
                 data.projects = projects || [];
