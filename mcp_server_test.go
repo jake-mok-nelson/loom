@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/mark3labs/mcp-go/mcptest"
 )
 
-// setupTestMCPServer creates a test database and MCP server
-func setupTestMCPServer(t *testing.T) (*server.MCPServer, *Database, func()) {
+// setupTestMCPServer creates a test database and MCP server using mcptest
+func setupTestMCPServer(t *testing.T) (*mcptest.Server, *Database, func()) {
 	t.Helper()
 	tempDir, err := os.MkdirTemp("", "loom-mcp-test-*")
 	if err != nil {
@@ -26,63 +26,43 @@ func setupTestMCPServer(t *testing.T) (*server.MCPServer, *Database, func()) {
 		t.Fatalf("Failed to create database: %v", err)
 	}
 
-	// Pass a no-op announce function for testing
-	s := NewMCPServer(testDB, func(string) {})
+	srv := mcptest.NewUnstartedServer(t)
+
+	srv.AddTools(projectTools(testDB, func(string) {})...)
+	srv.AddTools(taskTools(testDB, func(string) {})...)
+	srv.AddTools(problemTools(testDB, func(string) {})...)
+	srv.AddTools(outcomeTools(testDB, func(string) {})...)
+	srv.AddTools(goalTools(testDB, func(string) {})...)
+	srv.AddTools(taskNoteTools(testDB, func(string) {})...)
+
+	if err := srv.Start(context.Background()); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("Failed to start MCP server: %v", err)
+	}
 
 	cleanup := func() {
+		srv.Close()
 		testDB.Close()
 		os.RemoveAll(tempDir)
 	}
 
-	return s, testDB, cleanup
+	return srv, testDB, cleanup
 }
 
-// callMCPTool sends a JSON-RPC tools/call request to the MCP server and
-// returns the parsed CallToolResult.
-func callMCPTool(t *testing.T, s *server.MCPServer, toolName string, args map[string]interface{}) *mcp.CallToolResult {
+// callMCPTool calls a tool via the mcptest client and returns the result.
+func callMCPTool(t *testing.T, srv *mcptest.Server, toolName string, args map[string]interface{}) *mcp.CallToolResult {
 	t.Helper()
 
-	reqMap := map[string]interface{}{
-		"jsonrpc": "2.0",
-		"id":      1,
-		"method":  "tools/call",
-		"params": map[string]interface{}{
-			"name":      toolName,
-			"arguments": args,
-		},
-	}
-	reqJSON, err := json.Marshal(reqMap)
+	var req mcp.CallToolRequest
+	req.Params.Name = toolName
+	req.Params.Arguments = args
+
+	result, err := srv.Client().CallTool(context.Background(), req)
 	if err != nil {
-		t.Fatalf("Failed to marshal request: %v", err)
+		t.Fatalf("CallTool %s failed: %v", toolName, err)
 	}
 
-	resp := s.HandleMessage(context.Background(), reqJSON)
-
-	respJSON, err := json.Marshal(resp)
-	if err != nil {
-		t.Fatalf("Failed to marshal response: %v", err)
-	}
-
-	var rpcResp struct {
-		Result *mcp.CallToolResult `json:"result"`
-		Error  *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(respJSON, &rpcResp); err != nil {
-		t.Fatalf("Failed to parse response: %v\nRaw: %s", err, string(respJSON))
-	}
-
-	if rpcResp.Error != nil {
-		t.Fatalf("JSON-RPC error: code=%d, message=%s", rpcResp.Error.Code, rpcResp.Error.Message)
-	}
-
-	if rpcResp.Result == nil {
-		t.Fatal("Expected non-nil result")
-	}
-
-	return rpcResp.Result
+	return result
 }
 
 // getTextContent extracts text content from a CallToolResult.
