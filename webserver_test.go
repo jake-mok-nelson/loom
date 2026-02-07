@@ -26,7 +26,7 @@ func setupTestWebServer(t *testing.T) (*WebServer, *Database, func()) {
 		t.Fatalf("Failed to create database: %v", err)
 	}
 
-	ws := NewWebServer(testDB, ":0", ":0")
+	ws := NewWebServer(testDB, ":0", ":0", nil)
 
 	cleanup := func() {
 		testDB.Close()
@@ -485,7 +485,7 @@ func TestCORSHeaders(t *testing.T) {
 }
 
 func TestAPIBaseURL(t *testing.T) {
-	ws := NewWebServer(nil, ":8080", ":3000")
+	ws := NewWebServer(nil, ":8080", ":3000", nil)
 
 	tests := []struct {
 		name     string
@@ -524,7 +524,7 @@ func TestSeparateServers(t *testing.T) {
 	}
 	defer testDB.Close()
 
-	ws := NewWebServer(testDB, ":0", ":0")
+	ws := NewWebServer(testDB, ":0", ":0", nil)
 
 	// Verify the webAddr and addr are different fields
 	if ws.addr == "" {

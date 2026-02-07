@@ -18,23 +18,25 @@ type WebServer struct {
 	db         *Database
 	addr       string
 	webAddr    string
+	mcpHandler http.Handler
 	clients    map[chan string]bool
 	clientsMux sync.RWMutex
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(db *Database, addr string, webAddr string) *WebServer {
+func NewWebServer(db *Database, addr string, webAddr string, mcpHandler http.Handler) *WebServer {
 	return &WebServer{
-		db:      db,
-		addr:    addr,
-		webAddr: webAddr,
-		clients: make(map[chan string]bool),
+		db:         db,
+		addr:       addr,
+		webAddr:    webAddr,
+		mcpHandler: mcpHandler,
+		clients:    make(map[chan string]bool),
 	}
 }
 
 // Start begins the API and website servers on separate ports
 func (ws *WebServer) Start() error {
-	// API server mux - serves REST API and SSE endpoints
+	// API server mux - serves REST API, SSE, and MCP endpoints
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("/api/projects", ws.handleProjects)
 	apiMux.HandleFunc("/api/tasks", ws.handleTasks)
@@ -43,6 +45,9 @@ func (ws *WebServer) Start() error {
 	apiMux.HandleFunc("/api/goals", ws.handleGoals)
 	apiMux.HandleFunc("/api/voice", ws.handleVoice)
 	apiMux.HandleFunc("/events", ws.handleSSE)
+	if ws.mcpHandler != nil {
+		apiMux.Handle("/mcp", ws.mcpHandler)
+	}
 
 	// Website server mux - serves the dashboard UI
 	webMux := http.NewServeMux()

@@ -52,28 +52,26 @@ export LOOM_DB_PATH=/path/to/your/loom.db
 
 ### Starting the Servers
 
-Loom runs the API server (REST API + SSE), the website (dashboard), and the MCP server on separate ports:
+Loom runs the API server (REST API, SSE, and MCP) and the website (dashboard) on separate ports:
 
 ```bash
-# Using the binary directly (API on :8080, Dashboard on :3000, MCP on :8081)
+# Using the binary directly (API + MCP on :8080, Dashboard on :3000)
 ./loom
 
 # Specify custom ports
-./loom -addr :9090 -web-addr :4000 -mcp-addr :9091
+./loom -addr :9090 -web-addr :4000
 
 # Using make
 make web
 ```
 
 Then open your browser to http://localhost:3000 (or your custom web port) to view the dashboard.
-The API and SSE endpoints are available at http://localhost:8080 (or your custom API port).
-The MCP Streamable HTTP endpoint is available at http://localhost:8081/mcp (or your custom MCP port).
+The API, SSE, and MCP Streamable HTTP endpoints are all available at http://localhost:8080 (or your custom API port).
 
 ### Command-Line Options
 
-- `-addr`: API server address and port (default: `:8080`)
+- `-addr`: API and MCP server address and port (default: `:8080`)
 - `-web-addr`: Website server address and port (default: `:3000`)
-- `-mcp-addr`: MCP Streamable HTTP server address and port (default: `:8081`)
 
 You can also set the `LOOM_DB_PATH` environment variable to use a custom database location.
 
@@ -173,7 +171,7 @@ To connect an MCP client (e.g., Claude Desktop) to Loom, use the Streamable HTTP
   "mcpServers": {
     "loom": {
       "type": "streamable-http",
-      "url": "http://localhost:8081/mcp"
+      "url": "http://localhost:8080/mcp"
     }
   }
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -28,11 +27,10 @@ func NewMCPServer(database *Database) *server.MCPServer {
 	return s
 }
 
-// StartMCPServer starts the MCP Streamable HTTP server on the given address.
-func StartMCPServer(mcpServer *server.MCPServer, addr string) error {
-	httpServer := server.NewStreamableHTTPServer(mcpServer)
-	log.Printf("Starting Loom MCP server (Streamable HTTP) at http://%s/mcp", addr)
-	return httpServer.Start(addr)
+// NewMCPHandler creates a new MCP Streamable HTTP handler that can be
+// mounted on an existing HTTP server mux at the "/mcp" path.
+func NewMCPHandler(mcpServer *server.MCPServer) *server.StreamableHTTPServer {
+	return server.NewStreamableHTTPServer(mcpServer)
 }
 
 // --- Project Tools ---
