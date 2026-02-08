@@ -23,6 +23,7 @@ func NewMCPServer(database *Database, announceFunc func(string)) *server.MCPServ
 	s.AddTools(outcomeTools(database, announceFunc)...)
 	s.AddTools(goalTools(database, announceFunc)...)
 	s.AddTools(taskNoteTools(database, announceFunc)...)
+	s.AddTools(summaryTools(database)...)
 
 	return s
 }
@@ -64,10 +65,12 @@ func projectTools(db *Database, announceFunc func(string)) []server.ServerTool {
 		},
 		{
 			Tool: mcp.NewTool("list_projects",
-				mcp.WithDescription("List all projects in Loom"),
+				mcp.WithDescription("List all projects in Loom, optionally filtered by status"),
+				mcp.WithString("status", mcp.Description("Filter by status (e.g. active, planning, on_hold, completed, archived)")),
 			),
 			Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				projects, err := db.ListProjects()
+				status := optionalString(req, "status")
+				projects, err := db.ListProjects(status)
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %v", err)), nil
 				}
@@ -883,6 +886,89 @@ func taskNoteTools(db *Database, announceFunc func(string)) []server.ServerTool 
 					return mcp.NewToolResultError(fmt.Sprintf("failed to delete task note: %v", err)), nil
 				}
 				return mcp.NewToolResultText("task note deleted successfully"), nil
+			},
+		},
+	}
+}
+
+// --- Summary Tools ---
+
+// ActiveWorkSummary represents a consolidated view of all active/in-progress work items.
+type ActiveWorkSummary struct {
+	Projects []*Project `json:"projects"`
+	Tasks    []*Task    `json:"tasks"`
+	Problems []*Problem `json:"problems"`
+	Outcomes []*Outcome `json:"outcomes"`
+}
+
+func summaryTools(db *Database) []server.ServerTool {
+	return []server.ServerTool{
+		{
+			Tool: mcp.NewTool("get_active_work_summary",
+				mcp.WithDescription("Get a consolidated summary of all active work: active projects, pending/in-progress tasks, open/in-progress problems, and open/in-progress outcomes. This is more token-efficient than calling multiple list tools separately."),
+			),
+			Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				activeStatus := "active"
+				projects, err := db.ListProjects(&activeStatus)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list active projects: %v", err)), nil
+				}
+				if projects == nil {
+					projects = []*Project{}
+				}
+
+				// Get pending and in_progress tasks
+				pendingStatus := "pending"
+				pendingTasks, err := db.ListTasks(nil, &pendingStatus, nil)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list pending tasks: %v", err)), nil
+				}
+				inProgressStatus := "in_progress"
+				inProgressTasks, err := db.ListTasks(nil, &inProgressStatus, nil)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list in-progress tasks: %v", err)), nil
+				}
+				tasks := append(pendingTasks, inProgressTasks...)
+				if len(tasks) == 0 {
+					tasks = []*Task{}
+				}
+
+				// Get open and in_progress problems
+				openStatus := "open"
+				openProblems, err := db.ListProblems(nil, nil, &openStatus, nil)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list open problems: %v", err)), nil
+				}
+				inProgressProblems, err := db.ListProblems(nil, nil, &inProgressStatus, nil)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list in-progress problems: %v", err)), nil
+				}
+				problems := append(openProblems, inProgressProblems...)
+				if len(problems) == 0 {
+					problems = []*Problem{}
+				}
+
+				// Get open and in_progress outcomes
+				openOutcomes, err := db.ListOutcomes(nil, nil, &openStatus)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list open outcomes: %v", err)), nil
+				}
+				inProgressOutcomes, err := db.ListOutcomes(nil, nil, &inProgressStatus)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list in-progress outcomes: %v", err)), nil
+				}
+				outcomes := append(openOutcomes, inProgressOutcomes...)
+				if len(outcomes) == 0 {
+					outcomes = []*Outcome{}
+				}
+
+				summary := ActiveWorkSummary{
+					Projects: projects,
+					Tasks:    tasks,
+					Problems: problems,
+					Outcomes: outcomes,
+				}
+				return jsonToolResult(summary)
 			},
 		},
 	}

@@ -34,6 +34,7 @@ func setupTestMCPServer(t *testing.T) (*mcptest.Server, *Database, func()) {
 	srv.AddTools(outcomeTools(testDB, func(string) {})...)
 	srv.AddTools(goalTools(testDB, func(string) {})...)
 	srv.AddTools(taskNoteTools(testDB, func(string) {})...)
+	srv.AddTools(summaryTools(testDB)...)
 
 	if err := srv.Start(context.Background()); err != nil {
 		os.RemoveAll(tempDir)
@@ -335,5 +336,78 @@ func TestMCPOptionalHelpers(t *testing.T) {
 	i = optionalInt64(req, "missing")
 	if i != nil {
 		t.Errorf("Expected nil, got %v", *i)
+	}
+}
+
+func TestMCPGetActiveWorkSummary(t *testing.T) {
+	s, db, cleanup := setupTestMCPServer(t)
+	defer cleanup()
+
+	// Create test data: mix of active and inactive items
+	activeProject, _ := db.CreateProject("Active Project", "desc", "active", "")
+	db.CreateProject("Completed Project", "desc", "completed", "")
+
+	db.CreateTask(activeProject.ID, "Pending Task", "", "pending", "low", "general", "")
+	db.CreateTask(activeProject.ID, "In-Progress Task", "", "in_progress", "high", "feature", "")
+	db.CreateTask(activeProject.ID, "Completed Task", "", "completed", "low", "general", "")
+
+	db.CreateProblem(nil, nil, "Open Problem", "desc", "open", "")
+	db.CreateProblem(nil, nil, "Resolved Problem", "desc", "resolved", "")
+
+	db.CreateOutcome(activeProject.ID, nil, "Open Outcome", "desc", "open")
+	db.CreateOutcome(activeProject.ID, nil, "Completed Outcome", "desc", "completed")
+
+	result := callMCPTool(t, s, "get_active_work_summary", map[string]interface{}{})
+	text := getTextContent(result)
+
+	var summary ActiveWorkSummary
+	if err := json.Unmarshal([]byte(text), &summary); err != nil {
+		t.Fatalf("failed to unmarshal summary: %v", err)
+	}
+
+	if len(summary.Projects) != 1 {
+		t.Errorf("expected 1 active project, got %d", len(summary.Projects))
+	}
+	if len(summary.Tasks) != 2 {
+		t.Errorf("expected 2 active tasks (pending + in_progress), got %d", len(summary.Tasks))
+	}
+	if len(summary.Problems) != 1 {
+		t.Errorf("expected 1 open problem, got %d", len(summary.Problems))
+	}
+	if len(summary.Outcomes) != 1 {
+		t.Errorf("expected 1 open outcome, got %d", len(summary.Outcomes))
+	}
+}
+
+func TestMCPListProjectsWithStatusFilter(t *testing.T) {
+	s, db, cleanup := setupTestMCPServer(t)
+	defer cleanup()
+
+	db.CreateProject("Active", "desc", "active", "")
+	db.CreateProject("Completed", "desc", "completed", "")
+
+	// Filter by active status
+	result := callMCPTool(t, s, "list_projects", map[string]interface{}{
+		"status": "active",
+	})
+	text := getTextContent(result)
+
+	var projects []*Project
+	if err := json.Unmarshal([]byte(text), &projects); err != nil {
+		t.Fatalf("failed to unmarshal projects: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Errorf("expected 1 active project, got %d", len(projects))
+	}
+
+	// No filter returns all
+	result = callMCPTool(t, s, "list_projects", map[string]interface{}{})
+	text = getTextContent(result)
+
+	if err := json.Unmarshal([]byte(text), &projects); err != nil {
+		t.Fatalf("failed to unmarshal projects: %v", err)
+	}
+	if len(projects) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(projects))
 	}
 }
