@@ -356,10 +356,18 @@ func (d *Database) GetProject(id int64) (*Project, error) {
 	return &p, nil
 }
 
-func (d *Database) ListProjects() ([]*Project, error) {
-	rows, err := d.db.Query(
-		"SELECT id, name, description, COALESCE(external_link, ''), created_at, updated_at, COALESCE(status, 'active') FROM projects ORDER BY updated_at DESC",
-	)
+func (d *Database) ListProjects(status *string) ([]*Project, error) {
+	query := "SELECT id, name, description, COALESCE(external_link, ''), created_at, updated_at, COALESCE(status, 'active') FROM projects WHERE 1=1"
+	args := []interface{}{}
+
+	if status != nil {
+		query += " AND COALESCE(status, 'active') = ?"
+		args = append(args, *status)
+	}
+
+	query += " ORDER BY updated_at DESC"
+
+	rows, err := d.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -74,7 +74,7 @@ func TestGetProjectNotFound(t *testing.T) {
 func TestListProjects(t *testing.T) {
 	db := newTestDatabase(t)
 
-	projects, err := db.ListProjects()
+	projects, err := db.ListProjects(nil)
 	if err != nil {
 		t.Fatalf("failed to list projects: %v", err)
 	}
@@ -85,12 +85,52 @@ func TestListProjects(t *testing.T) {
 	db.CreateProject("P1", "", "", "")
 	db.CreateProject("P2", "", "", "")
 
-	projects, err = db.ListProjects()
+	projects, err = db.ListProjects(nil)
 	if err != nil {
 		t.Fatalf("failed to list projects: %v", err)
 	}
 	if len(projects) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(projects))
+	}
+}
+
+func TestListProjectsFiltered(t *testing.T) {
+	db := newTestDatabase(t)
+
+	db.CreateProject("Active Project", "desc", "active", "")
+	db.CreateProject("Completed Project", "desc", "completed", "")
+	db.CreateProject("Archived Project", "desc", "archived", "")
+
+	// Filter by active status
+	status := "active"
+	projects, err := db.ListProjects(&status)
+	if err != nil {
+		t.Fatalf("failed to list active projects: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 active project, got %d", len(projects))
+	}
+	if projects[0].Name != "Active Project" {
+		t.Fatalf("expected %q, got %q", "Active Project", projects[0].Name)
+	}
+
+	// Filter by completed status
+	status = "completed"
+	projects, err = db.ListProjects(&status)
+	if err != nil {
+		t.Fatalf("failed to list completed projects: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 completed project, got %d", len(projects))
+	}
+
+	// No filter returns all
+	projects, err = db.ListProjects(nil)
+	if err != nil {
+		t.Fatalf("failed to list all projects: %v", err)
+	}
+	if len(projects) != 3 {
+		t.Fatalf("expected 3 projects, got %d", len(projects))
 	}
 }
 
@@ -1138,7 +1178,7 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	}
 	defer db2.Close()
 
-	projects, err := db2.ListProjects()
+	projects, err := db2.ListProjects(nil)
 	if err != nil {
 		t.Fatalf("failed to list projects: %v", err)
 	}
