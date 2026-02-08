@@ -929,7 +929,7 @@ func summaryTools(db *Database) []server.ServerTool {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to list in-progress tasks: %v", err)), nil
 				}
 				tasks := append(pendingTasks, inProgressTasks...)
-				if tasks == nil {
+				if len(tasks) == 0 {
 					tasks = []*Task{}
 				}
 
@@ -944,7 +944,7 @@ func summaryTools(db *Database) []server.ServerTool {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to list in-progress problems: %v", err)), nil
 				}
 				problems := append(openProblems, inProgressProblems...)
-				if problems == nil {
+				if len(problems) == 0 {
 					problems = []*Problem{}
 				}
 
@@ -958,7 +958,7 @@ func summaryTools(db *Database) []server.ServerTool {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to list in-progress outcomes: %v", err)), nil
 				}
 				outcomes := append(openOutcomes, inProgressOutcomes...)
-				if outcomes == nil {
+				if len(outcomes) == 0 {
 					outcomes = []*Outcome{}
 				}
 
